@@ -1,64 +1,60 @@
-# 🚀 ClienderOSV1
+# 🚀 Cliender OS v1
 
-**Sistema IA de Agentes Especializados para Ventas**
+**Plataforma integrada de IA para orquestación, diseño de contenido y prospección automática**
 
-Transforma leads en propuestas comerciales automáticamente en 10-15 segundos.
+Herramientas especializadas para generación de contenido visual con IA, orquestación de flujos de trabajo y prospección B2B automática.
 
 ---
 
 ## ✨ Características
 
-### 🧠 5 Agentes IA Especializados
-- **LeadExtractor** - Extrae datos
-- **PainAnalyzer** - Identifica dolores
-- **StrategyMapper** - Define estrategia
-- **ProposalWriter** - Redacta propuesta
-- **NextStepsPlanner** - Planifica pasos
+### 🎨 Studio - Diseño de Contenido
+- Generación de imágenes con **Flux** (KIE AI)
+- Generación de videos con **Seedance 2.0** (KIE AI)
+- Enhancement de prompts con Claude Haiku (`/shaq` agent)
+- Canvas visual con **ReactFlow**
+- Galería integrada con historial
 
-### 📓 Shared Notebook
-- Memoria única compartida
-- Sin repeticiones
-- Contexto completo
+### 🤖 Prospección - LeadUp
+- Búsqueda y enriquecimiento automático de leads B2B
+- Filtrado por sector (construcción, reformas)
+- Distribución diaria a equipo comercial
+- Análisis de IA por lead
 
-### 💰 -66% de Costos
-- $0.0003 por lead
-- Haiku 4.5 optimizado
-- Escalable
+### 📋 Orquestador [En desarrollo]
+- Flujos de trabajo templados
+- Ejecución automática de procesos
+- Integración con múltiples APIs
 
-### 🎨 Frontend Professional
-- React + Vite
-- Socket.io real-time
-- Dark Glass Design
-
-### 🚀 Backend Robusto
-- Express.js
-- Socket.io
-- API REST completa
+### 💰 Optimizado
+- APIs eficientes con Claude Haiku
+- Caching inteligente
+- Arquitectura escalable
 
 ---
 
 ## 🚀 Quick Start
 
 ```bash
-# 1. Clonar
-git clone https://github.com/nicogemini1998-commits/ClienderOSV1.git
-cd ClienderOSV1
-
-# 2. Instalar
+# 1. Instalar dependencias
 npm install
 
-# 3. Configurar .env
+# 2. Configurar variables
 cp .env.example .env
-# Editar: ANTHROPIC_API_KEY=sk-ant-...
+# Editar: ANTHROPIC_API_KEY, KIE_API_KEY, JWT_SECRET
 
-# 4. Backend (Terminal 1)
-cd FullStackAI/backend && npm run dev
+# 3. Studio Backend (Terminal 1)
+cd apps/studio/backend
+npm install
+npm start  # Puerto 3005
 
-# 5. Frontend (Terminal 2)
-cd FullStackAI/frontend && npm run dev
+# 4. Studio Frontend (Terminal 2)
+cd apps/studio/frontend
+npm install
+npm run dev  # Puerto 5177
 
-# 6. Abrir navegador
-http://localhost:5173
+# 5. Abrir navegador
+http://localhost:5177
 ```
 
 ---
@@ -66,67 +62,92 @@ http://localhost:5173
 ## 📊 Arquitectura
 
 ```
-Frontend (React)
-    ↓ Socket.io
-Backend (Express)
+Studio Frontend (React + ReactFlow)
+    ↓ REST API
+Studio Backend (Express)
     ↓
-BOB-BRAIN (5 Agentes Haiku + Shared Notebook)
+Core Bot (Agentes IA + Utilidades)
     ↓
-PostgreSQL
+SQLite Database
 ```
 
 ---
 
-## 📁 Estructura
+## 📁 Estructura Actual
 
 ```
 ClienderOSV1/
-├── BOB-BRAIN/agentes/       (5 agentes + Shared Notebook)
-├── FullStackAI/backend/     (Express + Socket.io)
-├── FullStackAI/frontend/    (React + Dashboard)
-├── DATABASE/                (PostgreSQL schemas)
-├── DOCS/                    (Documentación)
-└── README.md
+├── apps/
+│   ├── studio/              # Herramienta de diseño
+│   │   ├── backend/         # Express + rutas KIE/Anthropic
+│   │   └── frontend/        # React + ReactFlow canvas
+│   ├── orchestrator/        # [En desarrollo]
+│   └── leadup/              # Prospección B2B
+│
+├── core/
+│   ├── bot/                 # Agentes IA + executor
+│   └── utils/               # Helpers compartidos
+│
+├── docs/
+│   ├── reference/           # Documentación y contextos
+│   ├── guides/              # Guías de implementación
+│   └── architecture/        # Decisiones técnicas
+│
+├── data/                    # SQLite database
+├── imagenes/                # Screenshots y diseños
+├── scripts/                 # Utilidades
+└── config/                  # Configuración global
 ```
 
 ---
 
 ## 🔧 Tecnologías
 
-- **Node.js** v24 (ESM)
-- **Express** 4.x
-- **React** 19 + Vite
-- **Socket.io** - Real-time
-- **Claude Haiku** - IA
-- **PostgreSQL** - Database
-- **Tailwind CSS** - Styling
+**Frontend**
+- React 19 + Vite
+- ReactFlow (canvas visual)
+- Vite + SWC
+- Tailwind CSS
+
+**Backend**
+- Express.js 4.x
+- SQLite3 (better-sqlite3)
+- Anthropic SDK
+- Node.js (ESM)
+
+**APIs Externas**
+- Anthropic Claude (prompts, enhancement)
+- KIE AI (generación imagen/video)
 
 ---
 
-## 📈 Performance
+## 📂 Guía de Uso
 
-- **Workflow completo**: 10-15 segundos
-- **Costo por lead**: $0.0003
-- **Tokens**: 3700 (Haiku)
-- **Escalable**: 10,000+ leads
+### Documentación
+Todos los documentos están organizados en `docs/reference/`:
+- `BOB_INSTRUCTIONS.md` - Instrucciones principales
+- `BOB_AGENTES_v2_EXPLICACION.md` - Arquitectura de agentes
+- `CLIENDER_PROJECT_AUDIT.md` - Auditoría del proyecto
+- Y más...
 
----
-
-## 📚 Documentación
-
-- `MARTES_IMPLEMENTATION_GUIDE.md` - Setup detallado
-- `BOB_AGENTES_v2_EXPLICACION.md` - Agentes técnica
-- `00_QUICK_START.js` - Quick start
-- +18 guías adicionales
-
----
-
-## ✅ Status
-
-- ✅ Production Ready
-- ✅ Completamente documentado
-- ✅ Listo para martes
+### Flujo de Desarrollo
+1. **Idea** → Documente en `docs/`
+2. **Código** → Organice en `apps/` o `core/`
+3. **Commit** → Use mensaje descriptivo
+4. **Push** → A rama main
 
 ---
 
-**Created by BOB ClienderOSV1 | 2026-04-24**
+## ✅ Estatus de Organización
+
+- ✅ Todas las carpetas tienen propósito claro
+- ✅ Documentación centralizada en `docs/reference/`
+- ✅ Apps aisladas con estructura uniforme
+- ✅ Código compartido en `core/`
+- ✅ Sin archivos sueltos en la raíz
+- ✅ Estructura lista para escalar
+
+---
+
+**Actualizado**: 2026-04-24  
+**Mantenedor**: Cliender Team

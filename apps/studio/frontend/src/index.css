@@ -1,0 +1,76 @@
+/* ─── Design tokens (oklch color space) ─────────────────────── */
+:root {
+  /* Canvas background */
+  --bg:               oklch(11% 0.015 250);
+
+  /* Glass surfaces — elevation levels */
+  --glass:            oklch(18% 0.01 250 / 0.45);
+  --glass-hover:      oklch(22% 0.012 250 / 0.55);
+  --glass-elevated:   oklch(20% 0.012 250 / 0.7);
+
+  /* Text hierarchy */
+  --text:             oklch(96% 0 0);
+  --text-secondary:   oklch(70% 0 0);
+  --text-muted:       oklch(45% 0 0);
+
+  /* Accents */
+  --accent:           oklch(65% 0.2 265);
+  --accent-light:     oklch(78% 0.18 265);
+  --accent-glow:      oklch(65% 0.2 265 / 0.25);
+  --success:          oklch(70% 0.18 155);
+  --success-glow:     oklch(70% 0.18 155 / 0.2);
+  --error:            oklch(62% 0.22 25);
+  --warning:          oklch(75% 0.18 80);
+
+  /* Glass borders (inner box-shadow, NOT border property) */
+  --border-glass:     oklch(100% 0 0 / 0.08);
+  --border-active:    oklch(100% 0 0 / 0.18);
+
+  /* Motion */
+  --ease-out:   cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-ios:   cubic-bezier(0.32, 0.72, 0, 1);
+  --dur-fast:   180ms;
+  --dur-normal: 300ms;
+  --dur-panel:  400ms;
+
+  /* Spacing */
+  --space-xs:   4px;
+  --space-sm:   8px;
+  --space-md:   12px;
+  --space-lg:   20px;
+  --space-xl:   32px;
+}
+
+/* ─── Reset ──────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code, .mono {
+  font-family: 'IBM Plex Mono', 'Menlo', monospace;
+}
+
+button { cursor: pointer; font-family: inherit; }
+input, textarea { font-family: inherit; }
+
+/* ─── Scrollbar ───────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 3px; height: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: oklch(40% 0 0 / 0.4); border-radius: 99px; }
+
+/* ─── Reduced motion ─────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

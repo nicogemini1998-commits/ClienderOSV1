@@ -32,7 +32,7 @@ router.post('/', (req, res) => {
 // PUT /api/content-templates/:id
 router.put('/:id', (req, res) => {
   const { name, description, nodes, edges } = req.body;
-  db.prepare(`UPDATE content_templates SET name=?, description=?, nodes=?, edges=?, created_at=datetime('now') WHERE id=?`)
+  db.prepare(`UPDATE content_templates SET name=?, description=?, nodes=?, edges=?, updated_at=datetime('now') WHERE id=?`)
     .run(name, description || null, JSON.stringify(nodes || []), JSON.stringify(edges || []), req.params.id);
   const t = db.prepare('SELECT * FROM content_templates WHERE id = ?').get(req.params.id);
   if (!t) return res.status(404).json({ error: 'Not found' });

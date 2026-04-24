@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
   ReactFlow, useNodesState, useEdgesState, Background, MiniMap,
   ReactFlowProvider, addEdge, useReactFlow,
@@ -34,9 +34,10 @@ const INITIAL_EDGES = [
   { id: 'e-vid', source: 'video-1', target: 'output-1', type: 'default' },
 ];
 
-function CanvasInner({ editMode }) {
+const CanvasInner = React.forwardRef(function CanvasInnerComponent({ editMode, userId }, ref) {
   const [nodes, setNodes, onNodesChange] = useNodesState(INITIAL_NODES);
   const [edges, setEdges, onEdgesChange] = useEdgesState(INITIAL_EDGES);
+  const [savedTemplates, setSavedTemplates] = useState([]);
   const { fitView } = useReactFlow();
 
   const onConnect = useCallback((params) => {
@@ -52,6 +53,32 @@ function CanvasInner({ editMode }) {
       data: {},
     }]);
   }, []);
+
+  React.useImperativeHandle(ref, () => ({
+    async save(name) {
+      const response = await fetch('/api/content-templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, name, nodes, edges }),
+      });
+      return response.json();
+    },
+    async load(templateId) {
+      const response = await fetch(`/api/content-templates?userId=${userId}`);
+      const templates = await response.json();
+      const template = templates.find(t => t.id === templateId);
+      if (template) {
+        setNodes(template.nodes);
+        setEdges(template.edges);
+      }
+    },
+    async fetchTemplates() {
+      const response = await fetch(`/api/content-templates?userId=${userId}`);
+      const templates = await response.json();
+      setSavedTemplates(templates);
+      return templates;
+    },
+  }));
 
   return (
     <ReactFlow
@@ -81,6 +108,7 @@ function CanvasInner({ editMode }) {
         {[
           { type: 'image', label: '🖼 + Imagen', color: '265' },
           { type: 'video', label: '🎬 + Video', color: '155' },
+          { type: 'prompt', label: '📝 + Prompt', color: '50' },
         ].map(({ type, label, color }) => (
           <button
             key={type}
@@ -101,32 +129,71 @@ function CanvasInner({ editMode }) {
       </div>
     </ReactFlow>
   );
-}
+});
 
 export function ContentStudioCanvas({ onSwitchTool }) {
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const [selectedClient, setSelectedClient] = useState(null);
   const [selectedStyle, setSelectedStyle] = useState(null);
   const [stylesPanelOpen, setStylesPanelOpen] = useState(false);
   const [galleryPanelOpen, setGalleryPanelOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
+  const [savedTemplates, setSavedTemplates] = useState([]);
+  const [showLoadMenu, setShowLoadMenu] = useState(false);
+  const canvasRef = useRef();
 
   const { items: galleryItems, addItem, deleteItem, load: loadGallery } = useGallery();
   const recentMedia = galleryItems.slice(0, 20);
+
+  React.useEffect(() => {
+    loadGallery();
+  }, [selectedClient, loadGallery]);
 
   const generateContent = useCallback((results) => {
     results.filter(r => r.url).forEach(r => addItem(r));
   }, [addItem]);
 
+  const handleSaveCanvas = useCallback(async () => {
+    const name = prompt('Nombre del template:');
+    if (!name || !canvasRef.current) return;
+    try {
+      await canvasRef.current.save(name);
+      alert('Template guardado');
+    } catch (err) {
+      alert('Error al guardar: ' + err.message);
+    }
+  }, []);
+
+  const handleLoadTemplates = useCallback(async () => {
+    if (!canvasRef.current) return;
+    try {
+      const templates = await canvasRef.current.fetchTemplates();
+      setSavedTemplates(templates);
+      setShowLoadMenu(!showLoadMenu);
+    } catch (err) {
+      alert('Error al cargar templates: ' + err.message);
+    }
+  }, [showLoadMenu]);
+
+  const handleLoadTemplate = useCallback(async (templateId) => {
+    if (!canvasRef.current) return;
+    try {
+      await canvasRef.current.load(templateId);
+      setShowLoadMenu(false);
+    } catch (err) {
+      alert('Error al cargar template: ' + err.message);
+    }
+  }, []);
+
   const contextValue = useMemo(() => ({
     user,
-    token: localStorage.getItem('cliender_token'),
+    token,
     selectedClient,
     selectedStyle,
     recentMedia,
     generateContent,
     deleteMediaItem: deleteItem,
-  }), [user, selectedClient, selectedStyle, recentMedia, generateContent, deleteItem]);
+  }), [user, token, selectedClient, selectedStyle, recentMedia, generateContent, deleteItem]);
 
   const Divider = () => <div style={{ width: 1, height: 18, background: 'oklch(100% 0 0 / 0.08)', margin: '0 4px' }} />;
 
@@ -215,6 +282,40 @@ export function ContentStudioCanvas({ onSwitchTool }) {
 
           <Divider />
 
+          <HeaderBtn onClick={handleSaveCanvas}>
+            💾 Guardar
+          </HeaderBtn>
+
+          <div style={{ position: 'relative' }}>
+            <HeaderBtn onClick={handleLoadTemplates} active={showLoadMenu}>
+              📂 Cargar
+            </HeaderBtn>
+            {showLoadMenu && savedTemplates.length > 0 && (
+              <div style={{
+                position: 'absolute', top: '100%', left: 0, marginTop: 4, background: 'oklch(14% 0.01 250 / 0.95)',
+                backdropFilter: 'blur(16px)', borderRadius: 7, border: '1px solid oklch(100% 0 0 / 0.09)',
+                minWidth: 180, zIndex: 100, maxHeight: 300, overflowY: 'auto', boxShadow: '0 4px 14px -2px oklch(0% 0 0 / 0.4)'
+              }}>
+                {savedTemplates.map(t => (
+                  <div
+                    key={t.id}
+                    onClick={() => handleLoadTemplate(t.id)}
+                    style={{
+                      padding: '8px 12px', cursor: 'pointer', fontSize: 11, color: 'oklch(65% 0 0)',
+                      borderBottom: '1px solid oklch(100% 0 0 / 0.05)', transition: 'background 150ms'
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'oklch(100% 0 0 / 0.06)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    {t.name}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <Divider />
+
           <HeaderBtn onClick={() => setEditMode(m => !m)} active={editMode}>
             {editMode ? '✓ Editando' : '✏ Editar'}
           </HeaderBtn>
@@ -234,7 +335,7 @@ export function ContentStudioCanvas({ onSwitchTool }) {
         {/* Canvas */}
         <div style={{ position: 'absolute', inset: 0, zIndex: 1, paddingTop: 52 }}>
           <ReactFlowProvider>
-            <CanvasInner editMode={editMode} />
+            <CanvasInner ref={canvasRef} editMode={editMode} userId={user?.id} />
           </ReactFlowProvider>
         </div>
 

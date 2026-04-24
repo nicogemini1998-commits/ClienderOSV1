@@ -118,7 +118,6 @@ export function ImageNode({ id, data }) {
   const [brief, setBrief] = useState('');
 
   const [refImages, setRefImages] = useState([]);
-  const [styleInput, setStyleInput] = useState('');
   const [raw, setRaw] = useState(false);
   const [seedMode, setSeedMode] = useState('random');
   const [seedValue, setSeedValue] = useState('');
@@ -251,19 +250,15 @@ export function ImageNode({ id, data }) {
         {/* Escenarios */}
         <Collapsible title="Escenarios">
           {/* Estilo */}
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 9, color: 'oklch(42% 0 0)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Estilo</div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <input
-                type="text"
-                placeholder="Estilo personalizado..."
-                value={styleInput}
-                onChange={e => setStyleInput(e.target.value)}
-                style={{ flex: 1, padding: '5px 8px', background: 'oklch(100% 0 0 / 0.04)', border: 'none', borderRadius: 6, boxShadow: 'inset 0 0 0 1px oklch(100% 0 0 / 0.09)', color: 'oklch(85% 0 0)', fontSize: 10, fontFamily: 'inherit', outline: 'none' }}
-              />
-              <button style={{ padding: '5px 10px', fontSize: 9, color: 'oklch(65% 0.2 265)', cursor: 'pointer', background: 'none', border: 'none', fontFamily: 'inherit' }}>Seleccionar →</button>
+          {selectedStyle && (
+            <div style={{ marginBottom: 10, padding: '6px 8px', borderRadius: 6, background: 'oklch(65% 0.2 265 / 0.1)', boxShadow: 'inset 0 0 0 1px oklch(65% 0.2 265 / 0.25)' }}>
+              <div style={{ fontSize: 8, color: 'oklch(42% 0 0)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Estilo seleccionado</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ fontSize: 12 }}>{selectedStyle.emoji}</span>
+                <span style={{ fontSize: 10, color: 'oklch(72% 0.18 265)' }}>{selectedStyle.name}</span>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Imagen de referencia */}
           <UploadArea label="Imagen de referencia" maxFiles={1} fileTypes="image/*" files={refImages} onChange={setRefImages} />

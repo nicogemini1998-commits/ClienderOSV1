@@ -34,10 +34,9 @@ const INITIAL_EDGES = [
   { id: 'e-vid', source: 'video-1', target: 'output-1', type: 'default' },
 ];
 
-const CanvasInner = React.forwardRef(function CanvasInnerComponent({ editMode, userId }, ref) {
+const CanvasInner = React.forwardRef(function CanvasInnerComponent({ editMode, userId, token }, ref) {
   const [nodes, setNodes, onNodesChange] = useNodesState(INITIAL_NODES);
   const [edges, setEdges, onEdgesChange] = useEdgesState(INITIAL_EDGES);
-  const [savedTemplates, setSavedTemplates] = useState([]);
   const { fitView } = useReactFlow();
 
   const onConnect = useCallback((params) => {
@@ -58,25 +57,28 @@ const CanvasInner = React.forwardRef(function CanvasInnerComponent({ editMode, u
     async save(name) {
       const response = await fetch('/api/content-templates', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, name, nodes, edges }),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name, nodes, edges }),
       });
+      if (!response.ok) throw new Error(`Save failed: ${response.statusText}`);
       return response.json();
     },
     async load(templateId) {
-      const response = await fetch(`/api/content-templates?userId=${userId}`);
-      const templates = await response.json();
-      const template = templates.find(t => t.id === templateId);
-      if (template) {
-        setNodes(template.nodes);
-        setEdges(template.edges);
-      }
+      const response = await fetch(`/api/content-templates/${templateId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error(`Load failed: ${response.statusText}`);
+      const template = await response.json();
+      setNodes(template.nodes);
+      setEdges(template.edges);
+      fitView({ padding: 0.2 });
     },
     async fetchTemplates() {
-      const response = await fetch(`/api/content-templates?userId=${userId}`);
-      const templates = await response.json();
-      setSavedTemplates(templates);
-      return templates;
+      const response = await fetch('/api/content-templates', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error(`Fetch failed: ${response.statusText}`);
+      return response.json();
     },
   }));
 
@@ -169,11 +171,11 @@ export function ContentStudioCanvas({ onSwitchTool }) {
     try {
       const templates = await canvasRef.current.fetchTemplates();
       setSavedTemplates(templates);
-      setShowLoadMenu(!showLoadMenu);
+      setShowLoadMenu(prev => !prev);
     } catch (err) {
       alert('Error al cargar templates: ' + err.message);
     }
-  }, [showLoadMenu]);
+  }, []);
 
   const handleLoadTemplate = useCallback(async (templateId) => {
     if (!canvasRef.current) return;
@@ -290,26 +292,32 @@ export function ContentStudioCanvas({ onSwitchTool }) {
             <HeaderBtn onClick={handleLoadTemplates} active={showLoadMenu}>
               📂 Cargar
             </HeaderBtn>
-            {showLoadMenu && savedTemplates.length > 0 && (
+            {showLoadMenu && (
               <div style={{
                 position: 'absolute', top: '100%', left: 0, marginTop: 4, background: 'oklch(14% 0.01 250 / 0.95)',
                 backdropFilter: 'blur(16px)', borderRadius: 7, border: '1px solid oklch(100% 0 0 / 0.09)',
                 minWidth: 180, zIndex: 100, maxHeight: 300, overflowY: 'auto', boxShadow: '0 4px 14px -2px oklch(0% 0 0 / 0.4)'
               }}>
-                {savedTemplates.map(t => (
-                  <div
-                    key={t.id}
-                    onClick={() => handleLoadTemplate(t.id)}
-                    style={{
-                      padding: '8px 12px', cursor: 'pointer', fontSize: 11, color: 'oklch(65% 0 0)',
-                      borderBottom: '1px solid oklch(100% 0 0 / 0.05)', transition: 'background 150ms'
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.background = 'oklch(100% 0 0 / 0.06)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                  >
-                    {t.name}
+                {savedTemplates.length === 0 ? (
+                  <div style={{ padding: '10px 12px', fontSize: 11, color: 'oklch(42% 0 0)' }}>
+                    No hay templates guardados
                   </div>
-                ))}
+                ) : (
+                  savedTemplates.map(t => (
+                    <div
+                      key={t.id}
+                      onClick={() => handleLoadTemplate(t.id)}
+                      style={{
+                        padding: '8px 12px', cursor: 'pointer', fontSize: 11, color: 'oklch(65% 0 0)',
+                        borderBottom: '1px solid oklch(100% 0 0 / 0.05)', transition: 'background 150ms'
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'oklch(100% 0 0 / 0.06)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      {t.name}
+                    </div>
+                  ))
+                )}
               </div>
             )}
           </div>
@@ -335,7 +343,7 @@ export function ContentStudioCanvas({ onSwitchTool }) {
         {/* Canvas */}
         <div style={{ position: 'absolute', inset: 0, zIndex: 1, paddingTop: 52 }}>
           <ReactFlowProvider>
-            <CanvasInner ref={canvasRef} editMode={editMode} userId={user?.id} />
+            <CanvasInner ref={canvasRef} editMode={editMode} userId={user?.id} token={token} />
           </ReactFlowProvider>
         </div>
 

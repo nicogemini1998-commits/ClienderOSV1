@@ -5,7 +5,7 @@ const router = Router();
 
 // GET /api/content-templates — authenticated user's templates only
 router.get('/', (req, res) => {
-  const userId = req.user?.id;
+  const userId = req.user?.userId;
   if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
   const rows = db.prepare(
@@ -17,7 +17,7 @@ router.get('/', (req, res) => {
 
 // POST /api/content-templates — creates new template for authenticated user
 router.post('/', (req, res) => {
-  const userId = req.user?.id;
+  const userId = req.user?.userId;
   if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
   const { name, description, nodes = [], edges = [] } = req.body;
@@ -34,7 +34,7 @@ router.post('/', (req, res) => {
 
 // GET /api/content-templates/:id — fetch specific template if owner
 router.get('/:id', (req, res) => {
-  const userId = req.user?.id;
+  const userId = req.user?.userId;
   if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
   const t = db.prepare('SELECT * FROM content_templates WHERE id = ? AND user_id = ?').get(req.params.id, userId);
@@ -45,7 +45,7 @@ router.get('/:id', (req, res) => {
 
 // PUT /api/content-templates/:id — update only if owner
 router.put('/:id', (req, res) => {
-  const userId = req.user?.id;
+  const userId = req.user?.userId;
   if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
   const { name, description, nodes, edges } = req.body;
@@ -64,7 +64,7 @@ router.put('/:id', (req, res) => {
 
 // DELETE /api/content-templates/:id — delete only if owner
 router.delete('/:id', (req, res) => {
-  const userId = req.user?.id;
+  const userId = req.user?.userId;
   if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
   const existing = db.prepare('SELECT * FROM content_templates WHERE id = ?').get(req.params.id);

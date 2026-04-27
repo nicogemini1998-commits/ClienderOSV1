@@ -83,9 +83,19 @@ export default function Dashboard() {
         l.assignment_id === assignmentId ? { ...l, status: newStatus } : l
       )
     )
-    // Update modal lead if open
     setSelectedLead((prev) =>
       prev?.assignment_id === assignmentId ? { ...prev, status: newStatus } : prev
+    )
+  }
+
+  const handleContactChange = (assignmentId, updatedContact) => {
+    setLeads((prev) =>
+      prev.map((l) =>
+        l.assignment_id === assignmentId ? { ...l, contact: updatedContact } : l
+      )
+    )
+    setSelectedLead((prev) =>
+      prev?.assignment_id === assignmentId ? { ...prev, contact: updatedContact } : prev
     )
   }
 
@@ -206,6 +216,7 @@ export default function Dashboard() {
           lead={selectedLead}
           onClose={() => setSelectedLead(null)}
           onStatusChange={handleStatusChange}
+          onContactChange={handleContactChange}
         />
       )}
     </>

@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import StatusBar from './StatusBar'
-import { notesApi } from '../lib/api'
+import { notesApi, contactsApi } from '../lib/api'
 
 const OPP_STYLES = {
   alta:  'text-emerald-400 bg-emerald-400/10 border-emerald-400/30',
@@ -14,13 +14,14 @@ function scoreColor(s) {
   return 'text-red-400'
 }
 
-function SectionLabel({ children }) {
+function SectionLabel({ children, action }) {
   return (
     <div className="flex items-center gap-3 mb-4">
       <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] whitespace-nowrap">
         {children}
       </span>
       <div className="flex-1 h-px bg-surface-border" />
+      {action}
     </div>
   )
 }
@@ -86,12 +87,30 @@ function buildOpportunities(company) {
   return { sales, tech, content }
 }
 
-export default function CompanyModal({ lead, onClose, onStatusChange }) {
+function PencilIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+    </svg>
+  )
+}
+
+export default function CompanyModal({ lead, onClose, onStatusChange, onContactChange }) {
   const [notes, setNotes] = useState(lead?.notes || '')
   const [savingNotes, setSavingNotes] = useState(false)
   const [notesSaved, setNotesSaved] = useState(false)
-  const overlayRef = useRef(null)
-  const saveTimerRef = useRef(null)
+
+  const [contact, setContact] = useState(lead?.contact || null)
+  const [editingContact, setEditingContact] = useState(false)
+  const [contactForm, setContactForm] = useState({
+    name: lead?.contact?.name || '',
+    title: lead?.contact?.title || '',
+    phone: lead?.contact?.phone || '',
+    email: lead?.contact?.email || '',
+  })
+  const [savingContact, setSavingContact] = useState(false)
+  const [contactError, setContactError] = useState(null)
 
   useEffect(() => {
     const handleKey = (e) => { if (e.key === 'Escape') onClose() }
@@ -100,39 +119,64 @@ export default function CompanyModal({ lead, onClose, onStatusChange }) {
     return () => {
       document.removeEventListener('keydown', handleKey)
       document.body.style.overflow = ''
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     }
   }, [onClose])
 
-  const handleNotesChange = (value) => {
-    setNotes(value)
-    setNotesSaved(false)
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = setTimeout(() => saveNotes(value), 1200)
-  }
-
-  const saveNotes = async (value) => {
+  const handleSaveNotes = async () => {
     setSavingNotes(true)
+    setNotesSaved(false)
     try {
-      await notesApi.update(lead.assignment_id, value)
+      await notesApi.update(lead.assignment_id, notes)
       setNotesSaved(true)
     } catch (err) {
-      console.error('Failed to save notes:', err)
+      // silently fail — user can retry
     } finally {
       setSavingNotes(false)
     }
   }
 
+  const handleStartEditContact = () => {
+    setContactForm({
+      name: contact?.name || '',
+      title: contact?.title || '',
+      phone: contact?.phone || '',
+      email: contact?.email || '',
+    })
+    setContactError(null)
+    setEditingContact(true)
+  }
+
+  const handleCancelEditContact = () => {
+    setEditingContact(false)
+    setContactError(null)
+  }
+
+  const handleSaveContact = async () => {
+    if (!contact?.id) return
+    setSavingContact(true)
+    setContactError(null)
+    try {
+      const res = await contactsApi.update(contact.id, contactForm)
+      const updated = res.data
+      setContact(updated)
+      onContactChange?.(lead.assignment_id, updated)
+      setEditingContact(false)
+    } catch (err) {
+      setContactError('Error al guardar. Inténtalo de nuevo.')
+    } finally {
+      setSavingContact(false)
+    }
+  }
+
   if (!lead) return null
-  const { company, contact, assignment_id, status } = lead
+  const { company, assignment_id, status } = lead
   const mobile = contact?.phone || company.phone
   const oppStyle = OPP_STYLES[company.opportunity_level] || OPP_STYLES.media
   const { sales, tech, content } = buildOpportunities(company)
 
   return (
     <div
-      ref={overlayRef}
-      onClick={(e) => { if (e.target === overlayRef.current) onClose() }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in p-4"
     >
       <div className="bg-surface-raised border border-surface-border rounded-2xl w-full max-w-2xl max-h-[92vh] flex flex-col animate-slide-up overflow-hidden">
@@ -169,7 +213,6 @@ export default function CompanyModal({ lead, onClose, onStatusChange }) {
           </div>
 
           <div className="flex items-center gap-4 flex-shrink-0">
-            {/* Score */}
             <div className="text-right">
               <div className={`text-3xl font-black leading-none ${scoreColor(company.digital_score)}`}>
                 {company.digital_score}
@@ -205,57 +248,137 @@ export default function CompanyModal({ lead, onClose, onStatusChange }) {
 
           {/* DECISION MAKERS */}
           <section>
-            <SectionLabel>Decision Makers — Teléfono Móvil Verificado</SectionLabel>
+            <SectionLabel
+              action={
+                contact?.id && !editingContact ? (
+                  <button
+                    onClick={handleStartEditContact}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-surface-hover border border-surface-border transition-colors flex-shrink-0"
+                  >
+                    <PencilIcon />
+                    Editar
+                  </button>
+                ) : null
+              }
+            >
+              Decision Makers — Teléfono Móvil Verificado
+            </SectionLabel>
 
             {contact ? (
               <div className="bg-surface-card border border-surface-border rounded-xl p-4">
-                <div className="flex items-center justify-between gap-4">
-                  {/* Avatar + name */}
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-full bg-accent/20 border border-accent/30 flex items-center justify-center flex-shrink-0">
-                      <span className="text-sm font-black text-accent">
-                        {contact.name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?'}
-                      </span>
+                {editingContact ? (
+                  /* ── EDIT FORM ── */
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Nombre</label>
+                        <input
+                          type="text"
+                          value={contactForm.name}
+                          onChange={(e) => setContactForm({ ...contactForm, name: e.target.value })}
+                          className="w-full bg-surface-raised border border-surface-border rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-accent/50 transition-colors"
+                          placeholder="Nombre completo"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Cargo</label>
+                        <input
+                          type="text"
+                          value={contactForm.title}
+                          onChange={(e) => setContactForm({ ...contactForm, title: e.target.value })}
+                          className="w-full bg-surface-raised border border-surface-border rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-accent/50 transition-colors"
+                          placeholder="Cargo"
+                        />
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="font-bold text-white truncate">{contact.name}</p>
-                      {contact.title && (
-                        <p className="text-xs text-slate-400 truncate">{contact.title}</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Teléfono</label>
+                        <input
+                          type="tel"
+                          value={contactForm.phone}
+                          onChange={(e) => setContactForm({ ...contactForm, phone: e.target.value })}
+                          className="w-full bg-surface-raised border border-surface-border rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-slate-600 focus:outline-none focus:border-accent/50 transition-colors"
+                          placeholder="+34 6XX XXX XXX"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Email</label>
+                        <input
+                          type="email"
+                          value={contactForm.email}
+                          onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })}
+                          className="w-full bg-surface-raised border border-surface-border rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-accent/50 transition-colors"
+                          placeholder="email@empresa.com"
+                        />
+                      </div>
+                    </div>
+                    {contactError && (
+                      <p className="text-xs text-red-400">{contactError}</p>
+                    )}
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        onClick={handleSaveContact}
+                        disabled={savingContact}
+                        className="flex-1 bg-accent hover:bg-accent/90 disabled:opacity-50 text-white rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
+                      >
+                        {savingContact ? 'Guardando...' : 'Guardar cambios'}
+                      </button>
+                      <button
+                        onClick={handleCancelEditContact}
+                        disabled={savingContact}
+                        className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-surface-hover border border-surface-border transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* ── READ VIEW ── */
+                  <>
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-full bg-accent/20 border border-accent/30 flex items-center justify-center flex-shrink-0">
+                          <span className="text-sm font-black text-accent">
+                            {contact.name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?'}
+                          </span>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-white truncate">{contact.name}</p>
+                          {contact.title && (
+                            <p className="text-xs text-slate-400 truncate">{contact.title}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {mobile ? (
+                        <a
+                          href={`tel:${mobile}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex items-center gap-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded-xl px-4 py-2.5 font-mono font-bold text-sm transition-colors flex-shrink-0"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 9a16 16 0 0 0 7.09 7.09l.41-.41a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 17.92z" />
+                          </svg>
+                          {mobile}
+                        </a>
+                      ) : (
+                        <span className="text-xs text-slate-600 italic">Móvil no disponible</span>
                       )}
                     </div>
-                  </div>
 
-                  {/* Phone — always prominent */}
-                  {mobile ? (
-                    <a
-                      href={`tel:${mobile}`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="flex items-center gap-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded-xl px-4 py-2.5 font-mono font-bold text-sm transition-colors flex-shrink-0"
-                    >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 9a16 16 0 0 0 7.09 7.09l.41-.41a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 17.92z" />
-                      </svg>
-                      {mobile}
-                    </a>
-                  ) : (
-                    <span className="text-xs text-slate-600 italic">Móvil no disponible</span>
-                  )}
-                </div>
-
-                {/* Email row */}
-                {contact.email && (
-                  <div className="mt-3 pt-3 border-t border-surface-border flex items-center gap-2">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-slate-500 flex-shrink-0">
-                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                      <polyline points="22,6 12,13 2,6" />
-                    </svg>
-                    <a
-                      href={`mailto:${contact.email}`}
-                      className="text-sm text-accent hover:underline truncate"
-                    >
-                      {contact.email}
-                    </a>
-                  </div>
+                    {contact.email && (
+                      <div className="mt-3 pt-3 border-t border-surface-border flex items-center gap-2">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 text-slate-500 flex-shrink-0">
+                          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                          <polyline points="22,6 12,13 2,6" />
+                        </svg>
+                        <a href={`mailto:${contact.email}`} className="text-sm text-accent hover:underline truncate">
+                          {contact.email}
+                        </a>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             ) : (
@@ -285,10 +408,10 @@ export default function CompanyModal({ lead, onClose, onStatusChange }) {
                 value={`DFTMO Score ${company.digital_score}/100`}
                 note={company.website || undefined}
               />
-              <DiagRow label="Redes Sociales"   active={company.redes_sociales} />
-              <DiagRow label="CRM / Email"       active={company.email_marketing} />
-              <DiagRow label="Captación Leads"   active={company.captacion_leads} />
-              <DiagRow label="SEO"               active={company.seo_info} />
+              <DiagRow label="Redes Sociales"    active={company.redes_sociales} />
+              <DiagRow label="CRM / Email"        active={company.email_marketing} />
+              <DiagRow label="Captación Leads"    active={company.captacion_leads} />
+              <DiagRow label="SEO"                active={company.seo_info} />
               <DiagRow label="Contenido en vídeo" active={company.video_contenido} />
             </div>
           </section>
@@ -340,14 +463,21 @@ export default function CompanyModal({ lead, onClose, onStatusChange }) {
                 Notas del Comercial
               </span>
               <div className="flex-1 h-px bg-surface-border" />
-              <span className="text-xs text-slate-600 flex-shrink-0">
-                {savingNotes ? '↑ Guardando...' : notesSaved ? '✓ Guardado' : ''}
-              </span>
+              {notesSaved && !savingNotes && (
+                <span className="text-xs text-emerald-400 flex-shrink-0">✓ Guardado</span>
+              )}
+              <button
+                onClick={handleSaveNotes}
+                disabled={savingNotes}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-accent hover:bg-accent/90 disabled:opacity-50 text-white transition-colors flex-shrink-0"
+              >
+                {savingNotes ? 'Guardando...' : 'Guardar nota'}
+              </button>
             </div>
             <textarea
               value={notes}
-              onChange={(e) => handleNotesChange(e.target.value)}
-              placeholder="Escribe tus notas aquí... Se guardan automáticamente."
+              onChange={(e) => { setNotes(e.target.value); setNotesSaved(false) }}
+              placeholder="Escribe tus notas aquí..."
               rows={5}
               className="w-full bg-surface-card border border-surface-border rounded-xl px-4 py-3 text-sm text-slate-300 placeholder-slate-600 resize-none focus:outline-none focus:border-accent/50 font-mono leading-relaxed transition-colors"
             />

@@ -54,6 +54,11 @@ export const notesApi = {
   get: (assignmentId) => api.get(`/notes/${assignmentId}`),
 }
 
+// Contacts
+export const contactsApi = {
+  update: (contactId, data) => api.patch(`/contacts/${contactId}`, data),
+}
+
 // Admin
 export const adminApi = {
   assignNow: (userId = null, count = 20) =>

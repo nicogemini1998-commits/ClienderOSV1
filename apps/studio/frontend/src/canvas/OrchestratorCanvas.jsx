@@ -174,12 +174,7 @@ function Header({ selectedClient, onSelectClient, activeTemplate, editMode, setE
     }}>
       {/* Logo */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginRight: 4 }}>
-        <div style={{
-          width: 28, height: 28, borderRadius: 8,
-          background: 'linear-gradient(135deg, oklch(55% 0.22 265), oklch(42% 0.24 280))',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 14, boxShadow: '0 0 12px oklch(55% 0.22 265 / 0.3)', flexShrink: 0,
-        }}>⚡</div>
+        <img src="/logo.jpg" alt="Cliender" style={{ width: 28, height: 28, borderRadius: 7, objectFit: 'cover', flexShrink: 0 }} />
         <div>
           <span style={{ fontSize: 13, fontWeight: 800, color: 'oklch(90% 0 0)', letterSpacing: '-0.02em' }}>BOB</span>
           <span style={{ fontSize: 11, color: 'oklch(38% 0 0)', marginLeft: 5 }}>Orchestrator</span>

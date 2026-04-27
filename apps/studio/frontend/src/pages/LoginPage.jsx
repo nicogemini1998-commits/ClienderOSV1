@@ -60,12 +60,7 @@ export function LoginPage() {
       }}>
         {/* Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28 }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: 10,
-            background: 'linear-gradient(135deg, oklch(55% 0.22 265), oklch(42% 0.24 280))',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 18, boxShadow: '0 0 16px oklch(55% 0.22 265 / 0.35)',
-          }}>⚡</div>
+          <img src="/logo.jpg" alt="Cliender" style={{ width: 48, height: 48, borderRadius: 12, objectFit: 'cover', boxShadow: '0 0 20px oklch(55% 0.22 265 / 0.3)' }} />
           <div>
             <div style={{ fontSize: 16, fontWeight: 800, color: 'oklch(92% 0 0)', letterSpacing: '-0.02em' }}>CLIENDER</div>
             <div style={{ fontSize: 11, color: 'oklch(38% 0 0)', marginTop: 1 }}>OS · Workspace</div>

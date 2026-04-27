@@ -245,7 +245,7 @@ export function SpacesScreen({ onOpenCanvas, onOpenSpace, selectedClient, onSele
         backdropFilter: 'blur(20px)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 28, height: 28, borderRadius: 8, background: 'linear-gradient(135deg, oklch(55% 0.22 265), oklch(42% 0.24 280))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>✦</div>
+          <img src="/logo.jpg" alt="Cliender" style={{ width: 28, height: 28, borderRadius: 7, objectFit: 'cover' }} />
           <div>
             <span style={{ fontSize: 13, fontWeight: 800, color: 'oklch(90% 0 0)', letterSpacing: '-0.02em' }}>CLIENDER</span>
             <span style={{ fontSize: 11, color: 'oklch(38% 0 0)', marginLeft: 5 }}>Design</span>

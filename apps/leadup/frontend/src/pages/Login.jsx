@@ -39,11 +39,7 @@ export default function Login() {
         {/* Logo */}
         <div className="text-center mb-10">
           <div className="inline-flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center">
-              <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6 text-white" stroke="currentColor" strokeWidth="2.5">
-                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" strokeLinejoin="round" strokeLinecap="round" />
-              </svg>
-            </div>
+            <img src="/logo.jpg" alt="Cliender" className="w-14 h-14 rounded-2xl object-cover shadow-lg" />
             <div className="text-left">
               <p className="text-xl font-bold text-white leading-none">LeadUp</p>
               <p className="text-xs text-slate-400 font-medium tracking-widest uppercase">by Cliender</p>

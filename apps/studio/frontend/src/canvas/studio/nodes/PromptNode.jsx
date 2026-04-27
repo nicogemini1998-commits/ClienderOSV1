@@ -1,5 +1,5 @@
-import React, { useState, useContext } from 'react';
-import { Handle, Position } from '@xyflow/react';
+import React, { useState, useContext, useCallback } from 'react';
+import { Handle, Position, useReactFlow } from '@xyflow/react';
 import { StudioContext } from '../StudioContext.jsx';
 
 const AGENTS = [
@@ -8,16 +8,123 @@ const AGENTS = [
 
 export function PromptNode({ id, data }) {
   const { selectedClient, selectedStyle, user, generateContent, token } = useContext(StudioContext);
+  const { getEdges, getNodes, setNodes, addNodes, addEdges, deleteElements } = useReactFlow();
+
   const [brief, setBrief] = useState(data.brief || '');
   const [count, setCount] = useState(data.count || 1);
   const [agent, setAgent] = useState(data.agent || '/shaq');
   const [type, setType] = useState(data.type || 'image');
   const [prompts, setPrompts] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState('idle'); // idle | generating-prompts | generating-media | done | error
+  const [status, setStatus] = useState('idle');
   const [error, setError] = useState('');
 
   const canRun = brief.trim().length > 0 && !loading;
+  const hasDownstreamConnections = getEdges().some(e => e.source === id);
+
+  const handleConnectedGenerate = useCallback(async () => {
+    if (!canRun) return;
+    setLoading(true);
+    setError('');
+    setStatus('generating-prompts');
+    setPrompts([]);
+
+    try {
+      const res = await fetch('/api/kie/prompts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          brief: brief.trim(),
+          style_id: selectedStyle?.id || null,
+          client_id: selectedClient?.id || null,
+          count,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      const generatedPrompts = data.prompts || [];
+      setPrompts(generatedPrompts);
+
+      const edges = getEdges();
+      const outgoingEdges = edges.filter(e => e.source === id);
+      const targetIds = outgoingEdges.map(e => e.target);
+
+      const allNodes = getNodes();
+      const nodeUpdates = [];
+      const newNodes = [];
+      const newEdges = [];
+
+      generatedPrompts.forEach((prompt, idx) => {
+        const delay = idx * 120;
+
+        if (idx < targetIds.length) {
+          const targetId = targetIds[idx];
+          nodeUpdates.push({
+            targetId,
+            prompt,
+            delay,
+          });
+        } else {
+          const newNodeId = `image-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 5)}`;
+          const lastTarget = allNodes.find(n => n.id === targetIds[targetIds.length - 1]);
+          const position = {
+            x: (lastTarget?.position.x || 0) + 400,
+            y: (lastTarget?.position.y || 0) + idx * 150,
+          };
+
+          newNodes.push({
+            id: newNodeId,
+            type: 'image',
+            position,
+            data: {
+              incomingPrompt: prompt,
+              autoTrigger: Date.now() + delay,
+            },
+          });
+
+          newEdges.push({
+            id: `${id}-${newNodeId}`,
+            source: id,
+            target: newNodeId,
+          });
+        }
+      });
+
+      const updateExistingNodes = () => {
+        setNodes(nodes =>
+          nodes.map(n => {
+            const update = nodeUpdates.find(u => u.targetId === n.id);
+            if (!update) return n;
+            return {
+              ...n,
+              data: {
+                ...n.data,
+                incomingPrompt: update.prompt,
+                autoTrigger: Date.now() + update.delay,
+              },
+            };
+          })
+        );
+      };
+
+      updateExistingNodes();
+
+      if (newNodes.length > 0) {
+        setTimeout(() => {
+          addNodes(newNodes);
+          addEdges(newEdges);
+        }, nodeUpdates.length * 120);
+      }
+
+      setStatus('done');
+    } catch (err) {
+      setStatus('error');
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [id, brief, count, selectedStyle?.id, selectedClient?.id, token, canRun, getEdges, getNodes, setNodes, addNodes, addEdges]);
 
   const handleGenerate = async () => {
     if (!canRun) return;
@@ -91,7 +198,6 @@ export function PromptNode({ id, data }) {
       WebkitBackdropFilter: 'blur(20px) saturate(180%)',
       borderRadius: 14,
       boxShadow: `inset 0 0 0 1px oklch(65% 0.2 265 / ${status === 'generating-prompts' ? '0.5' : '0.18'}), 0 8px 28px -4px oklch(0% 0 0 / 0.35)`,
-      overflow: 'hidden',
       transition: 'box-shadow 300ms cubic-bezier(0.16,1,0.3,1)',
     }}>
       {/* Header */}
@@ -103,12 +209,20 @@ export function PromptNode({ id, data }) {
         </div>
         {/* Agent selector */}
         <select
+          className="nodrag"
           value={agent}
           onChange={e => setAgent(e.target.value)}
           style={{ fontSize: 10, background: 'oklch(100% 0 0 / 0.06)', border: 'none', borderRadius: 6, color: 'oklch(65% 0.2 265)', padding: '3px 6px', cursor: 'pointer', fontFamily: 'inherit', boxShadow: 'inset 0 0 0 1px oklch(65% 0.2 265 / 0.3)', outline: 'none' }}
         >
           {AGENTS.map(a => <option key={a.id} value={a.id}>{a.icon} {a.label}</option>)}
         </select>
+        <button
+          className="nodrag"
+          onClick={() => deleteElements({ nodes: [{ id }] })}
+          style={{ width: 24, height: 24, padding: 0, borderRadius: 5, border: 'none', background: 'oklch(62% 0.22 25 / 0.15)', color: 'oklch(65% 0.2 25)', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 150ms' }}
+          onMouseEnter={e => e.currentTarget.style.background = 'oklch(62% 0.22 25 / 0.3)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'oklch(62% 0.22 25 / 0.15)'}
+        >✕</button>
       </div>
 
       <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -116,6 +230,7 @@ export function PromptNode({ id, data }) {
         <div>
           <div style={{ fontSize: 9, color: 'oklch(42% 0 0)', fontFamily: 'IBM Plex Mono, monospace', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>Brief creativo</div>
           <textarea
+            className="nodrag"
             rows={3}
             placeholder="Describe qué quieres crear... Ej: foto de producto de lujo para una marca de relojes"
             value={brief}
@@ -131,7 +246,7 @@ export function PromptNode({ id, data }) {
             <div style={{ fontSize: 9, color: 'oklch(42% 0 0)', fontFamily: 'IBM Plex Mono, monospace', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>Tipo</div>
             <div style={{ display: 'flex', gap: 4 }}>
               {['image', 'video'].map(t => (
-                <button key={t} onClick={() => setType(t)} style={{ flex: 1, padding: '5px', borderRadius: 7, border: 'none', background: type === t ? 'oklch(65% 0.2 265 / 0.2)' : 'oklch(100% 0 0 / 0.04)', boxShadow: type === t ? 'inset 0 0 0 1px oklch(65% 0.2 265 / 0.4)' : 'inset 0 0 0 1px oklch(100% 0 0 / 0.08)', color: type === t ? 'oklch(78% 0.18 265)' : 'oklch(48% 0 0)', fontSize: 10, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 150ms' }}>
+                <button key={t} className="nodrag" onClick={() => setType(t)} style={{ flex: 1, padding: '5px', borderRadius: 7, border: 'none', background: type === t ? 'oklch(65% 0.2 265 / 0.2)' : 'oklch(100% 0 0 / 0.04)', boxShadow: type === t ? 'inset 0 0 0 1px oklch(65% 0.2 265 / 0.4)' : 'inset 0 0 0 1px oklch(100% 0 0 / 0.08)', color: type === t ? 'oklch(78% 0.18 265)' : 'oklch(48% 0 0)', fontSize: 10, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 150ms' }}>
                   {t === 'image' ? '🖼 Imagen' : '🎬 Video'}
                 </button>
               ))}
@@ -140,9 +255,9 @@ export function PromptNode({ id, data }) {
           <div style={{ width: 70 }}>
             <div style={{ fontSize: 9, color: 'oklch(42% 0 0)', fontFamily: 'IBM Plex Mono, monospace', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>Cantidad</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <button onClick={() => setCount(c => Math.max(1, c - 1))} style={{ width: 22, height: 22, borderRadius: 5, border: 'none', background: 'oklch(100% 0 0 / 0.06)', color: 'oklch(60% 0 0)', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+              <button className="nodrag" onClick={() => setCount(c => Math.max(1, c - 1))} style={{ width: 22, height: 22, borderRadius: 5, border: 'none', background: 'oklch(100% 0 0 / 0.06)', color: 'oklch(60% 0 0)', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
               <span style={{ fontSize: 13, color: 'oklch(88% 0 0)', fontWeight: 600, minWidth: 14, textAlign: 'center' }}>{count}</span>
-              <button onClick={() => setCount(c => Math.min(5, c + 1))} style={{ width: 22, height: 22, borderRadius: 5, border: 'none', background: 'oklch(100% 0 0 / 0.06)', color: 'oklch(60% 0 0)', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+              <button className="nodrag" onClick={() => setCount(c => Math.min(5, c + 1))} style={{ width: 22, height: 22, borderRadius: 5, border: 'none', background: 'oklch(100% 0 0 / 0.06)', color: 'oklch(60% 0 0)', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
             </div>
           </div>
         </div>
@@ -182,19 +297,22 @@ export function PromptNode({ id, data }) {
         {/* Action buttons */}
         <div style={{ display: 'flex', gap: 6 }}>
           <button
+            className="nodrag"
             onClick={handlePromptsOnly}
             disabled={!canRun}
             style={{ flex: 1, padding: '7px', borderRadius: 8, border: 'none', background: canRun ? 'oklch(100% 0 0 / 0.07)' : 'oklch(20% 0 0)', boxShadow: 'inset 0 0 0 1px oklch(100% 0 0 / 0.09)', color: canRun ? 'oklch(65% 0 0)' : 'oklch(35% 0 0)', fontSize: 10, fontWeight: 600, cursor: canRun ? 'pointer' : 'not-allowed', fontFamily: 'inherit', transition: 'all 150ms' }}
           >Ver prompts</button>
           <button
-            onClick={handleGenerate}
+            className="nodrag"
+            onClick={hasDownstreamConnections ? handleConnectedGenerate : handleGenerate}
             disabled={!canRun}
             style={{ flex: 2, padding: '7px', borderRadius: 8, border: 'none', background: canRun ? 'linear-gradient(135deg, oklch(55% 0.2 265), oklch(46% 0.22 280))' : 'oklch(25% 0 0)', color: canRun ? 'oklch(97% 0 0)' : 'oklch(40% 0 0)', fontSize: 11, fontWeight: 700, cursor: canRun ? 'pointer' : 'not-allowed', fontFamily: 'inherit', boxShadow: canRun ? '0 4px 12px oklch(55% 0.2 265 / 0.25)' : 'none', transition: 'all 150ms' }}
-          >{loading ? '◉ Generando...' : `▶ Generar ${count > 1 ? `×${count}` : ''}`}</button>
+          >{loading ? '◉ Generando...' : hasDownstreamConnections ? `▶ Generar + Enviar ${count > 1 ? `×${count}` : ''}` : `▶ Generar ${count > 1 ? `×${count}` : ''}`}</button>
         </div>
       </div>
 
-      <Handle type="source" position={Position.Right} />
+      <Handle type="target" position={Position.Left} id="prompts-in" style={{ background: 'oklch(65% 0.2 265 / 0.6)', width: 12, height: 12 }} />
+      <Handle type="source" position={Position.Right} style={{ background: 'oklch(65% 0.2 265)', borderColor: 'oklch(45% 0.2 265)', width: 12, height: 12 }} />
     </div>
   );
 }

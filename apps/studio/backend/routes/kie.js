@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import db from '../../../BOB-BRAIN/utils/db.js';
+import db from '../../../../core/bot/utils/db.js';
 import Anthropic from '@anthropic-ai/sdk';
 
 const router = Router();

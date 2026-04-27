@@ -1,5 +1,5 @@
 import React, { useState, useContext, useEffect, useRef, useCallback } from 'react';
-import { Handle, Position } from '@xyflow/react';
+import { Handle, Position, useReactFlow } from '@xyflow/react';
 import { StudioContext } from '../StudioContext.jsx';
 
 const MODELS = [
@@ -111,29 +111,44 @@ function Toggle({ label, value, onChange }) {
 
 export function ImageNode({ id, data }) {
   const { selectedClient, selectedStyle, user, token, generateContent } = useContext(StudioContext);
+  const { deleteElements } = useReactFlow();
 
-  const [model, setModel] = useState('flux-2/pro-text-to-image');
-  const [prompt, setPrompt] = useState('');
-  const [useAgent, setUseAgent] = useState(false);
-  const [brief, setBrief] = useState('');
+  const [model, setModel] = useState(data?.model || 'flux-2/pro-text-to-image');
+  const [prompt, setPrompt] = useState(data?.prompt || '');
+  const [useAgent, setUseAgent] = useState(data?.useAgent || false);
+  const [brief, setBrief] = useState(data?.brief || '');
 
-  const [refImages, setRefImages] = useState([]);
-  const [raw, setRaw] = useState(false);
-  const [seedMode, setSeedMode] = useState('random');
-  const [seedValue, setSeedValue] = useState('');
-  const [aspectRatio, setAspectRatio] = useState('1:1');
-  const [count, setCount] = useState(1);
+  const [refImages, setRefImages] = useState(data?.refImages || []);
+  const [raw, setRaw] = useState(data?.raw || false);
+  const [seedMode, setSeedMode] = useState(data?.seedMode || 'random');
+  const [seedValue, setSeedValue] = useState(data?.seedValue || '');
+  const [aspectRatio, setAspectRatio] = useState(data?.aspectRatio || '1:1');
+  const [count, setCount] = useState(data?.count || 1);
 
   const [genStatus, setGenStatus] = useState('idle');
   const [tasks, setTasks] = useState([]);
   const [errorMsg, setErrorMsg] = useState('');
 
+  const prevAutoTriggerRef = useRef(null);
+
   const doneCount = tasks.filter(t => t.status === 'done').length;
   const activeInput = useAgent ? brief : prompt;
   const canGenerate = activeInput.trim().length > 0 && genStatus !== 'submitting' && genStatus !== 'polling';
 
-  const handleGenerate = async () => {
-    if (!canGenerate) return;
+  // Auto-trigger on incoming prompt
+  useEffect(() => {
+    if (!data.autoTrigger) return;
+    if (data.autoTrigger === prevAutoTriggerRef.current) return;
+    if (!data.incomingPrompt?.trim()) return;
+    if (genStatus === 'submitting' || genStatus === 'polling') return;
+
+    prevAutoTriggerRef.current = data.autoTrigger;
+    handleGenerate(data.incomingPrompt);
+  }, [data.autoTrigger, data.incomingPrompt, genStatus]);
+
+  const handleGenerate = async (explicitPrompt = null) => {
+    const resolvedPrompt = explicitPrompt ?? (useAgent ? brief : prompt);
+    if (!resolvedPrompt.trim()) return;
     setGenStatus('submitting');
     setErrorMsg('');
     setTasks([]);
@@ -142,19 +157,13 @@ export function ImageNode({ id, data }) {
     const body = {
       model, aspectRatio, resolution: '1K', count,
       imageInput: refUrl || null,
+      prompt: resolvedPrompt.trim(),
+      use_agent: explicitPrompt ? false : useAgent,
       seed: seedMode === 'fixed' && seedValue ? seedValue : null,
       style_id: selectedStyle?.id || null,
       client_id: selectedClient?.id || null,
       user_id: user?.id || null,
     };
-
-    if (useAgent) {
-      body.brief = brief.trim();
-      body.use_agent = true;
-    } else {
-      body.prompt = prompt.trim();
-      body.use_agent = false;
-    }
 
     try {
       const resp = await fetch('/api/kie/image', {
@@ -214,7 +223,7 @@ export function ImageNode({ id, data }) {
     <div style={{
       width: 340, background: 'oklch(14% 0.015 265 / 0.92)', backdropFilter: 'blur(24px)', borderRadius: 14,
       boxShadow: `inset 0 0 0 1px oklch(65% 0.2 265 / 0.18), 0 8px 32px -4px oklch(0% 0 0 / 0.4)`,
-      overflow: 'hidden', transition: 'box-shadow 400ms',
+       transition: 'box-shadow 400ms',
     }}>
       {/* Header */}
       <div style={{ padding: '10px 13px 8px', borderBottom: '1px solid oklch(100% 0 0 / 0.07)', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -223,9 +232,16 @@ export function ImageNode({ id, data }) {
           <div style={{ fontSize: 11, fontWeight: 700, color: 'oklch(92% 0 0)' }}>Imagen</div>
           <div style={{ fontSize: 9, color: statusColor, transition: 'color 300ms' }}>{statusLabel}</div>
         </div>
-        <select value={model} onChange={e => setModel(e.target.value)} style={{ fontSize: 9, background: 'oklch(100% 0 0 / 0.07)', border: 'none', borderRadius: 6, color: 'oklch(72% 0.15 265)', padding: '4px 7px', cursor: 'pointer', fontFamily: 'inherit', outline: 'none', maxWidth: 130 }}>
+        <select className="nodrag" value={model} onChange={e => setModel(e.target.value)} style={{ fontSize: 9, background: 'oklch(100% 0 0 / 0.07)', border: 'none', borderRadius: 6, color: 'oklch(72% 0.15 265)', padding: '4px 7px', cursor: 'pointer', fontFamily: 'inherit', outline: 'none', maxWidth: 130 }}>
           {MODELS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
         </select>
+        <button
+          className="nodrag"
+          onClick={() => deleteElements({ nodes: [{ id }] })}
+          style={{ width: 24, height: 24, padding: 0, borderRadius: 5, border: 'none', background: 'oklch(62% 0.22 25 / 0.15)', color: 'oklch(65% 0.2 25)', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 150ms' }}
+          onMouseEnter={e => e.currentTarget.style.background = 'oklch(62% 0.22 25 / 0.3)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'oklch(62% 0.22 25 / 0.15)'}
+        >✕</button>
       </div>
 
       <div style={{ padding: '11px 13px', display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}>
@@ -233,11 +249,12 @@ export function ImageNode({ id, data }) {
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
             <span style={{ fontSize: 9, color: 'oklch(42% 0 0)', fontFamily: 'IBM Plex Mono', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Prompt</span>
-            <button onClick={() => setUseAgent(!useAgent)} style={{ fontSize: 9, padding: '2px 7px', borderRadius: 5, border: 'none', background: useAgent ? 'oklch(65% 0.2 265 / 0.18)' : 'oklch(100% 0 0 / 0.05)', color: useAgent ? 'oklch(72% 0.18 265)' : 'oklch(42% 0 0)', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 150ms' }}>
+            <button className="nodrag" onClick={() => setUseAgent(!useAgent)} style={{ fontSize: 9, padding: '2px 7px', borderRadius: 5, border: 'none', background: useAgent ? 'oklch(65% 0.2 265 / 0.18)' : 'oklch(100% 0 0 / 0.05)', color: useAgent ? 'oklch(72% 0.18 265)' : 'oklch(42% 0 0)', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 150ms' }}>
               {useAgent ? '🎯 /shaq' : '✏ Directo'}
             </button>
           </div>
           <textarea
+            className="nodrag"
             rows={3}
             placeholder="Describe la imagen con detalle..."
             value={useAgent ? brief : prompt}
@@ -270,11 +287,11 @@ export function ImageNode({ id, data }) {
           <div style={{ marginBottom: 8 }}>
             <div style={{ fontSize: 9, color: 'oklch(42% 0 0)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Semilla</div>
             <div style={{ display: 'flex', gap: 6 }}>
-              <button onClick={() => setSeedMode(m => m === 'random' ? 'fixed' : 'random')} style={{ flex: 1, padding: '3px 6px', borderRadius: 5, border: 'none', background: seedMode === 'fixed' ? 'oklch(65% 0.2 265 / 0.15)' : 'oklch(100% 0 0 / 0.05)', color: seedMode === 'fixed' ? 'oklch(70% 0.18 265)' : 'oklch(40% 0 0)', fontSize: 9, cursor: 'pointer', fontFamily: 'IBM Plex Mono', transition: 'all 150ms' }}>
+              <button className="nodrag" onClick={() => setSeedMode(m => m === 'random' ? 'fixed' : 'random')} style={{ flex: 1, padding: '3px 6px', borderRadius: 5, border: 'none', background: seedMode === 'fixed' ? 'oklch(65% 0.2 265 / 0.15)' : 'oklch(100% 0 0 / 0.05)', color: seedMode === 'fixed' ? 'oklch(70% 0.18 265)' : 'oklch(40% 0 0)', fontSize: 9, cursor: 'pointer', fontFamily: 'IBM Plex Mono', transition: 'all 150ms' }}>
                 {seedMode === 'random' ? '∞ Aleatorio' : '# Fijo'}
               </button>
               {seedMode === 'fixed' && (
-                <input type="number" placeholder="0" value={seedValue} onChange={e => setSeedValue(e.target.value)} style={{ width: 60, padding: '3px 6px', background: 'oklch(100% 0 0 / 0.04)', border: 'none', borderRadius: 5, boxShadow: 'inset 0 0 0 1px oklch(100% 0 0 / 0.09)', color: 'oklch(85% 0 0)', fontSize: 10, fontFamily: 'IBM Plex Mono', outline: 'none' }} />
+                <input className="nodrag" type="number" placeholder="0" value={seedValue} onChange={e => setSeedValue(e.target.value)} style={{ width: 60, padding: '3px 6px', background: 'oklch(100% 0 0 / 0.04)', border: 'none', borderRadius: 5, boxShadow: 'inset 0 0 0 1px oklch(100% 0 0 / 0.09)', color: 'oklch(85% 0 0)', fontSize: 10, fontFamily: 'IBM Plex Mono', outline: 'none' }} />
               )}
             </div>
           </div>
@@ -282,7 +299,7 @@ export function ImageNode({ id, data }) {
           {/* Relación de aspecto */}
           <div style={{ marginBottom: 8 }}>
             <div style={{ fontSize: 9, color: 'oklch(42% 0 0)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Relación de aspecto</div>
-            <select value={aspectRatio} onChange={e => setAspectRatio(e.target.value)} style={{ width: '100%', padding: '5px 8px', background: 'oklch(100% 0 0 / 0.04)', border: 'none', borderRadius: 6, boxShadow: 'inset 0 0 0 1px oklch(100% 0 0 / 0.09)', color: 'oklch(85% 0 0)', fontSize: 10, fontFamily: 'inherit', cursor: 'pointer', outline: 'none' }}>
+            <select className="nodrag" value={aspectRatio} onChange={e => setAspectRatio(e.target.value)} style={{ width: '100%', padding: '5px 8px', background: 'oklch(100% 0 0 / 0.04)', border: 'none', borderRadius: 6, boxShadow: 'inset 0 0 0 1px oklch(100% 0 0 / 0.09)', color: 'oklch(85% 0 0)', fontSize: 10, fontFamily: 'inherit', cursor: 'pointer', outline: 'none' }}>
               {ASPECT_RATIOS.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
@@ -291,9 +308,9 @@ export function ImageNode({ id, data }) {
           <div style={{ marginBottom: 0 }}>
             <div style={{ fontSize: 9, color: 'oklch(42% 0 0)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Cantidad</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <button onClick={() => setCount(c => Math.max(1, c - 1))} style={{ width: 24, height: 24, borderRadius: 5, border: 'none', background: 'oklch(100% 0 0 / 0.06)', color: 'oklch(65% 0 0)', cursor: 'pointer', fontSize: 13 }}>−</button>
+              <button className="nodrag" onClick={() => setCount(c => Math.max(1, c - 1))} style={{ width: 24, height: 24, borderRadius: 5, border: 'none', background: 'oklch(100% 0 0 / 0.06)', color: 'oklch(65% 0 0)', cursor: 'pointer', fontSize: 13 }}>−</button>
               <span style={{ fontSize: 13, color: 'oklch(88% 0 0)', fontWeight: 700, minWidth: 20, textAlign: 'center' }}>{count}</span>
-              <button onClick={() => setCount(c => Math.min(4, c + 1))} style={{ width: 24, height: 24, borderRadius: 5, border: 'none', background: 'oklch(100% 0 0 / 0.06)', color: 'oklch(65% 0 0)', cursor: 'pointer', fontSize: 13 }}>+</button>
+              <button className="nodrag" onClick={() => setCount(c => Math.min(4, c + 1))} style={{ width: 24, height: 24, borderRadius: 5, border: 'none', background: 'oklch(100% 0 0 / 0.06)', color: 'oklch(65% 0 0)', cursor: 'pointer', fontSize: 13 }}>+</button>
             </div>
           </div>
         </Collapsible>
@@ -302,7 +319,8 @@ export function ImageNode({ id, data }) {
 
         {/* Generate button */}
         <button
-          onClick={handleGenerate}
+          className="nodrag"
+          onClick={() => handleGenerate()}
           disabled={!canGenerate}
           style={{
             padding: '9px', borderRadius: 9, border: 'none',
@@ -316,8 +334,33 @@ export function ImageNode({ id, data }) {
         >
           ▶ Generar imagen{count > 1 ? ` ×${count}` : ''}
         </button>
+
+        {/* Results gallery */}
+        {tasks.some(t => t.status === 'done') && (
+          <div>
+            <div style={{ fontSize: 8, color: 'oklch(45% 0 0)', fontFamily: 'IBM Plex Mono', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
+              {tasks.filter(t => t.status === 'done').length} imagen{tasks.filter(t => t.status === 'done').length > 1 ? 'es' : ''} generada{tasks.filter(t => t.status === 'done').length > 1 ? 's' : ''}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 5 }}>
+              {tasks.filter(t => t.status === 'done' && t.url).map((t, i) => (
+                <div
+                  key={t.taskId}
+                  onClick={() => window.open(t.url, '_blank')}
+                  style={{
+                    aspectRatio: '1', borderRadius: 8, overflow: 'hidden', background: 'oklch(10% 0 0)',
+                    boxShadow: 'inset 0 0 0 1px oklch(65% 0.2 265 / 0.15)', cursor: 'pointer',
+                    animation: 'fadeIn 300ms ease forwards',
+                  }}
+                >
+                  <img src={t.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
+      <Handle type="target" position={Position.Left} id="prompt-in" style={{ background: 'oklch(65% 0.2 265 / 0.6)', borderColor: 'oklch(45% 0.2 265)', width: 12, height: 12 }} />
       <Handle type="source" position={Position.Right} style={{ background: 'oklch(65% 0.2 265)', borderColor: 'oklch(45% 0.2 265)' }} />
     </div>
   );

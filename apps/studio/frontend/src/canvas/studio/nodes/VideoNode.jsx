@@ -1,5 +1,5 @@
 import React, { useState, useContext, useEffect, useRef, useCallback } from 'react';
-import { Handle, Position } from '@xyflow/react';
+import { Handle, Position, useReactFlow } from '@xyflow/react';
 import { StudioContext } from '../StudioContext.jsx';
 
 const RESOLUTIONS = ['480p', '720p', '1080p'];
@@ -30,6 +30,7 @@ function ChipRow({ options, value, onChange, accent = 265 }) {
       {options.map(opt => (
         <button
           key={opt}
+          className="nodrag"
           onClick={() => onChange(opt)}
           style={{ padding: '2px 6px', borderRadius: 4, border: 'none', background: value === opt ? `oklch(65% 0.2 ${accent} / 0.2)` : 'oklch(100% 0 0 / 0.04)', boxShadow: value === opt ? `inset 0 0 0 1px oklch(65% 0.2 ${accent} / 0.4)` : 'inset 0 0 0 1px oklch(100% 0 0 / 0.07)', color: value === opt ? `oklch(75% 0.18 ${accent})` : 'oklch(42% 0 0)', fontSize: 8, cursor: 'pointer', fontFamily: 'IBM Plex Mono, monospace', transition: 'all 120ms' }}
         >{opt}</button>
@@ -88,7 +89,7 @@ function FileUploadSlot({ label, type, value, onChange, maxCount = 1 }) {
         <Label>{label}</Label>
         {maxCount > 1 && <span style={{ fontSize: 7, color: 'oklch(42% 0 0)' }}>{files.length}/{maxCount}</span>}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: maxCount === 1 ? '1fr' : 'repeat(auto-fit, minmax(50px, 1fr))', gap: 4 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: maxCount === 1 ? '1fr' : 'repeat(5, 1fr)', gap: 4 }}>
         {files.map((file, idx) => (
           <div
             key={idx}
@@ -109,6 +110,7 @@ function FileUploadSlot({ label, type, value, onChange, maxCount = 1 }) {
         ))}
         {canAdd && (
           <button
+            className="nodrag"
             onClick={() => inputRef.current?.click()}
             style={{
               aspectRatio: '1', borderRadius: 7, border: 'none',
@@ -137,6 +139,7 @@ function FileUploadSlot({ label, type, value, onChange, maxCount = 1 }) {
 
 export function VideoNode({ id, data }) {
   const { selectedClient, selectedStyle, user, token, generateContent } = useContext(StudioContext);
+  const { deleteElements } = useReactFlow();
 
   const [prompt, setPrompt] = useState('');
   const [useAgent, setUseAgent] = useState(false);
@@ -157,7 +160,9 @@ export function VideoNode({ id, data }) {
   const [genStatus, setGenStatus] = useState('idle');
   const [tasks, setTasks] = useState([]);
   const [errorMsg, setErrorMsg] = useState('');
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
   const pollRef = useRef(null);
+  const prevAutoTriggerRef = useRef(null);
 
   const doneCount = tasks.filter(t => t.status === 'done').length;
   const activeInput = useAgent ? brief : prompt;
@@ -196,6 +201,17 @@ export function VideoNode({ id, data }) {
     return updated;
   }, [token, selectedStyle, selectedClient, user, resolution, aspectRatio, duration, syncAudio, resumeLastFrame, webSearch, contentCheck, useAgent, generateContent]);
 
+  // Auto-trigger on incoming prompt from connected PromptNode
+  useEffect(() => {
+    if (!data.autoTrigger) return;
+    if (data.autoTrigger === prevAutoTriggerRef.current) return;
+    if (!data.incomingPrompt?.trim()) return;
+    if (genStatus === 'submitting' || genStatus === 'polling') return;
+
+    prevAutoTriggerRef.current = data.autoTrigger;
+    handleGenerate(data.incomingPrompt);
+  }, [data.autoTrigger, data.incomingPrompt, genStatus]);
+
   useEffect(() => {
     if (genStatus !== 'polling') return;
     pollRef.current = setInterval(async () => {
@@ -214,8 +230,9 @@ export function VideoNode({ id, data }) {
     return () => clearInterval(pollRef.current);
   }, [genStatus, checkTasks]);
 
-  const handleGenerate = async () => {
-    if (!canGenerate) return;
+  const handleGenerate = async (explicitPrompt = null) => {
+    const resolvedPrompt = explicitPrompt ?? (useAgent ? brief : prompt);
+    if (!resolvedPrompt.trim()) return;
     setGenStatus('submitting');
     setErrorMsg('');
     setTasks([]);
@@ -229,15 +246,9 @@ export function VideoNode({ id, data }) {
       style_id: selectedStyle?.id || null,
       client_id: selectedClient?.id || null,
       user_id: user?.id || null,
+      prompt: resolvedPrompt.trim(),
+      use_agent: explicitPrompt ? false : useAgent,
     };
-
-    if (useAgent) {
-      body.brief = brief.trim();
-      body.use_agent = true;
-    } else {
-      body.prompt = prompt.trim();
-      body.use_agent = false;
-    }
 
     try {
       const resp = await fetch('/api/kie/video', {
@@ -280,7 +291,6 @@ export function VideoNode({ id, data }) {
       WebkitBackdropFilter: 'blur(24px) saturate(180%)',
       borderRadius: 14,
       boxShadow: `inset 0 0 0 1px oklch(55% 0.18 155 / ${genStatus === 'polling' ? '0.5' : '0.22'}), 0 8px 32px -4px oklch(0% 0 0 / 0.4)`,
-      overflow: 'hidden',
       transition: 'box-shadow 400ms cubic-bezier(0.16,1,0.3,1)',
     }}>
       {/* Header */}
@@ -293,6 +303,13 @@ export function VideoNode({ id, data }) {
         <div style={{ fontSize: 8, color: 'oklch(55% 0.15 155)', fontFamily: 'IBM Plex Mono, monospace', padding: '2px 5px', borderRadius: 4, background: 'oklch(55% 0.18 155 / 0.12)', boxShadow: 'inset 0 0 0 1px oklch(55% 0.18 155 / 0.25)' }}>
           2.0
         </div>
+        <button
+          className="nodrag"
+          onClick={() => deleteElements({ nodes: [{ id }] })}
+          style={{ width: 20, height: 20, padding: 0, borderRadius: 4, border: 'none', background: 'oklch(62% 0.22 25 / 0.15)', color: 'oklch(65% 0.2 25)', cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 150ms' }}
+          onMouseEnter={e => e.currentTarget.style.background = 'oklch(62% 0.22 25 / 0.3)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'oklch(62% 0.22 25 / 0.15)'}
+        >✕</button>
       </div>
 
       <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 7 }}>
@@ -314,14 +331,26 @@ export function VideoNode({ id, data }) {
 
         {/* Prompt */}
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3, gap: 3 }}>
             <Label>{useAgent ? 'Brief creativo' : 'Prompt'}</Label>
-            <button
-              onClick={() => setUseAgent(a => !a)}
-              style={{ fontSize: 8, padding: '1px 5px', borderRadius: 4, border: 'none', background: useAgent ? 'oklch(55% 0.18 155 / 0.18)' : 'oklch(100% 0 0 / 0.05)', boxShadow: useAgent ? 'inset 0 0 0 1px oklch(55% 0.18 155 / 0.35)' : 'inset 0 0 0 1px oklch(100% 0 0 / 0.08)', color: useAgent ? 'oklch(68% 0.18 155)' : 'oklch(42% 0 0)', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 150ms' }}
-            >{useAgent ? '🎯 /shaq' : '✏ Directo'}</button>
+            <div style={{ display: 'flex', gap: 2 }}>
+              <button
+                className="nodrag"
+                onClick={() => setUseAgent(a => !a)}
+                style={{ fontSize: 8, padding: '1px 5px', borderRadius: 4, border: 'none', background: useAgent ? 'oklch(55% 0.18 155 / 0.18)' : 'oklch(100% 0 0 / 0.05)', boxShadow: useAgent ? 'inset 0 0 0 1px oklch(55% 0.18 155 / 0.35)' : 'inset 0 0 0 1px oklch(100% 0 0 / 0.08)', color: useAgent ? 'oklch(68% 0.18 155)' : 'oklch(42% 0 0)', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 150ms' }}
+              >{useAgent ? '🎯 /shaq' : '✏ Directo'}</button>
+              <button
+                className="nodrag"
+                onClick={() => setIsConfigOpen(o => !o)}
+                style={{ fontSize: 8, padding: '1px 5px', borderRadius: 4, border: 'none', background: isConfigOpen ? 'oklch(55% 0.18 155 / 0.18)' : 'oklch(100% 0 0 / 0.05)', boxShadow: isConfigOpen ? 'inset 0 0 0 1px oklch(55% 0.18 155 / 0.35)' : 'inset 0 0 0 1px oklch(100% 0 0 / 0.08)', color: isConfigOpen ? 'oklch(68% 0.18 155)' : 'oklch(42% 0 0)', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 150ms', display: 'flex', alignItems: 'center', gap: 2 }}
+              >
+                <span style={{ transform: isConfigOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 250ms cubic-bezier(0.16,1,0.3,1)', display: 'inline-block', fontSize: 6 }}>▶</span>
+                Config
+              </button>
+            </div>
           </div>
           <textarea
+            className="nodrag"
             rows={2}
             placeholder={useAgent ? 'Describe el concepto del video...' : 'Escribe el prompt...'}
             value={useAgent ? brief : prompt}
@@ -331,81 +360,91 @@ export function VideoNode({ id, data }) {
           />
         </div>
 
-        {/* Settings grid */}
-        <div>
-          <SectionTitle>Configuración</SectionTitle>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+        {/* Config Panel - Collapsible */}
+        <div style={{
+          maxHeight: isConfigOpen ? '1200px' : '0px',
+          overflow: 'hidden',
+          transition: 'max-height 320ms cubic-bezier(0.16, 1, 0.3, 1)',
+        }}>
+          <div style={{ paddingTop: 7, display: 'flex', flexDirection: 'column', gap: 7 }}>
+            {/* Settings grid */}
             <div>
-              <Label>Resolución</Label>
-              <ChipRow options={RESOLUTIONS} value={resolution} onChange={setResolution} accent={155} />
+              <SectionTitle>Configuración</SectionTitle>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                <div>
+                  <Label>Resolución</Label>
+                  <ChipRow options={RESOLUTIONS} value={resolution} onChange={setResolution} accent={155} />
+                </div>
+                <div>
+                  <Label>Proporción</Label>
+                  <ChipRow options={ASPECT_RATIOS} value={aspectRatio} onChange={setAspectRatio} accent={155} />
+                </div>
+              </div>
             </div>
+
+            {/* Duration */}
             <div>
-              <Label>Proporción</Label>
-              <ChipRow options={ASPECT_RATIOS} value={aspectRatio} onChange={setAspectRatio} accent={155} />
+              <Label>Duración</Label>
+              <ChipRow options={DURATIONS.map(d => `${d}s`)} value={`${duration}s`} onChange={d => setDuration(Number(d.replace('s', '')))} accent={155} />
             </div>
-          </div>
-        </div>
 
-        {/* Duration */}
-        <div>
-          <Label>Duración</Label>
-          <ChipRow options={DURATIONS.map(d => `${d}s`)} value={`${duration}s`} onChange={d => setDuration(Number(d.replace('s', '')))} accent={155} />
-        </div>
+            {/* Media uploads */}
+            <div>
+              <SectionTitle>Fotogramas clave</SectionTitle>
+              <FileUploadSlot label="Imágenes clave" type="image" value={keyFrames} onChange={setKeyFrames} maxCount={10} />
+            </div>
 
-        {/* Media uploads */}
-        <div>
-          <SectionTitle>Fotogramas clave</SectionTitle>
-          <FileUploadSlot label="Imágenes clave" type="image" value={keyFrames} onChange={setKeyFrames} maxCount={2} />
-        </div>
+            <div>
+              <SectionTitle>Vídeos de referencia</SectionTitle>
+              <FileUploadSlot label="Vídeos" type="video" value={refVideos} onChange={setRefVideos} maxCount={2} />
+            </div>
 
-        <div>
-          <SectionTitle>Vídeos de referencia</SectionTitle>
-          <FileUploadSlot label="Vídeos" type="video" value={refVideos} onChange={setRefVideos} maxCount={2} />
-        </div>
+            <div>
+              <SectionTitle>Audio de referencia</SectionTitle>
+              <FileUploadSlot label="Audio" type="audio" value={refAudio} onChange={setRefAudio} maxCount={2} />
+            </div>
 
-        <div>
-          <SectionTitle>Audio de referencia</SectionTitle>
-          <FileUploadSlot label="Audio" type="audio" value={refAudio} onChange={setRefAudio} maxCount={2} />
-        </div>
+            {/* Toggles */}
+            <div>
+              <SectionTitle>Opciones</SectionTitle>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {[
+                  { label: '🔊 Audio sincronizado', state: syncAudio, setState: setSyncAudio },
+                  { label: '↩ Retomar último fotograma', state: resumeLastFrame, setState: setResumeLastFrame },
+                  { label: '🔍 Búsqueda en línea', state: webSearch, setState: setWebSearch },
+                  { label: '✓ Verificar contenido', state: contentCheck, setState: setContentCheck },
+                ].map(({ label, state, setState }) => (
+                  <button
+                    key={label}
+                    className="nodrag"
+                    onClick={() => setState(s => !s)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 5, padding: '4px 6px',
+                      borderRadius: 6, border: 'none',
+                      background: state ? 'oklch(55% 0.18 155 / 0.12)' : 'oklch(100% 0 0 / 0.04)',
+                      boxShadow: state ? 'inset 0 0 0 1px oklch(55% 0.18 155 / 0.25)' : 'inset 0 0 0 1px oklch(100% 0 0 / 0.08)',
+                      color: state ? 'oklch(68% 0.18 155)' : 'oklch(42% 0 0)',
+                      cursor: 'pointer', fontSize: 8, fontFamily: 'inherit',
+                      transition: 'all 150ms', textAlign: 'left',
+                    }}
+                  >
+                    <span style={{ fontSize: 8 }}>{state ? '☑' : '☐'}</span>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-        {/* Toggles */}
-        <div>
-          <SectionTitle>Opciones</SectionTitle>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {[
-              { label: '🔊 Audio sincronizado', state: syncAudio, setState: setSyncAudio },
-              { label: '↩ Retomar último fotograma', state: resumeLastFrame, setState: setResumeLastFrame },
-              { label: '🔍 Búsqueda en línea', state: webSearch, setState: setWebSearch },
-              { label: '✓ Verificar contenido', state: contentCheck, setState: setContentCheck },
-            ].map(({ label, state, setState }) => (
-              <button
-                key={label}
-                onClick={() => setState(s => !s)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 5, padding: '4px 6px',
-                  borderRadius: 6, border: 'none',
-                  background: state ? 'oklch(55% 0.18 155 / 0.12)' : 'oklch(100% 0 0 / 0.04)',
-                  boxShadow: state ? 'inset 0 0 0 1px oklch(55% 0.18 155 / 0.25)' : 'inset 0 0 0 1px oklch(100% 0 0 / 0.08)',
-                  color: state ? 'oklch(68% 0.18 155)' : 'oklch(42% 0 0)',
-                  cursor: 'pointer', fontSize: 8, fontFamily: 'inherit',
-                  transition: 'all 150ms', textAlign: 'left',
-                }}
-              >
-                <span style={{ fontSize: 8 }}>{state ? '☑' : '☐'}</span>
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Count */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ fontSize: 9, color: 'oklch(42% 0 0)', fontFamily: 'IBM Plex Mono, monospace', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Cantidad</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <span style={{ fontSize: 9, color: 'oklch(40% 0 0)', fontFamily: 'IBM Plex Mono, monospace' }}>×</span>
-            <button onClick={() => setCount(c => Math.max(1, c - 1))} style={{ width: 20, height: 20, borderRadius: 5, border: 'none', background: 'oklch(100% 0 0 / 0.07)', color: 'oklch(65% 0 0)', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
-            <span style={{ fontSize: 12, color: 'oklch(88% 0 0)', fontWeight: 700, minWidth: 14, textAlign: 'center' }}>{count}</span>
-            <button onClick={() => setCount(c => Math.min(3, c + 1))} style={{ width: 20, height: 20, borderRadius: 5, border: 'none', background: 'oklch(100% 0 0 / 0.07)', color: 'oklch(65% 0 0)', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+            {/* Count */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontSize: 9, color: 'oklch(42% 0 0)', fontFamily: 'IBM Plex Mono, monospace', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Cantidad</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ fontSize: 9, color: 'oklch(40% 0 0)', fontFamily: 'IBM Plex Mono, monospace' }}>×</span>
+                <button className="nodrag" onClick={() => setCount(c => Math.max(1, c - 1))} style={{ width: 20, height: 20, borderRadius: 5, border: 'none', background: 'oklch(100% 0 0 / 0.07)', color: 'oklch(65% 0 0)', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                <span style={{ fontSize: 12, color: 'oklch(88% 0 0)', fontWeight: 700, minWidth: 14, textAlign: 'center' }}>{count}</span>
+                <button className="nodrag" onClick={() => setCount(c => Math.min(3, c + 1))} style={{ width: 20, height: 20, borderRadius: 5, border: 'none', background: 'oklch(100% 0 0 / 0.07)', color: 'oklch(65% 0 0)', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -432,6 +471,7 @@ export function VideoNode({ id, data }) {
 
         {/* Generate */}
         <button
+          className="nodrag"
           onClick={handleGenerate}
           disabled={!canGenerate}
           style={{
@@ -452,6 +492,7 @@ export function VideoNode({ id, data }) {
         </button>
       </div>
 
+      <Handle type="target" position={Position.Left} id="prompt-in" style={{ background: 'oklch(65% 0.18 155 / 0.6)', borderColor: 'oklch(45% 0.18 155)', width: 12, height: 12 }} />
       <Handle type="source" position={Position.Right} style={{ background: 'oklch(65% 0.18 155)', borderColor: 'oklch(45% 0.18 155)' }} />
     </div>
   );

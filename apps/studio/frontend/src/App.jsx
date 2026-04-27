@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './hooks/useAuth.jsx';
 import { LoginPage } from './pages/LoginPage.jsx';
+import { SpacesScreen } from './pages/SpacesScreen.jsx';
 import { OrchestratorCanvas } from './canvas/OrchestratorCanvas.jsx';
 import { ContentStudioCanvas } from './canvas/studio/ContentStudioCanvas.jsx';
 
@@ -10,8 +11,11 @@ function AppInner() {
   const { user, loading } = useAuth();
   const isAdmin = user && ADMIN_ROLES.includes(user.role);
 
-  // Admins start at orchestrator, limited users go straight to studio
   const [tool, setTool] = useState(() => isAdmin ? 'orchestrator' : 'studio');
+  // null = spaces screen, string id = open that template, 'new' = blank canvas
+  const [openSpaceId, setOpenSpaceId] = useState(null);
+  const [openSpaceName, setOpenSpaceName] = useState('');
+  const [selectedClient, setSelectedClient] = useState(null);
 
   if (loading) {
     return (
@@ -29,23 +33,35 @@ function AppInner() {
 
   if (!user) return <LoginPage />;
 
-  // Limited users: only Studio, no access to Orchestrator
-  if (!isAdmin) {
-    return <ContentStudioCanvas />;
+  // Orchestrator tool (admins only)
+  if (tool === 'orchestrator') {
+    return (
+      <OrchestratorCanvas
+        onSwitchTool={() => { setTool('studio'); setOpenSpaceId(null); }}
+      />
+    );
   }
 
-  // Admins: can switch between tools
-  if (tool === 'studio') {
+  // Studio: show spaces screen unless a space is open
+  if (!openSpaceId) {
     return (
-      <ContentStudioCanvas
-        onSwitchTool={() => setTool('orchestrator')}
+      <SpacesScreen
+        selectedClient={selectedClient}
+        onSelectClient={setSelectedClient}
+        onOpenCanvas={() => setOpenSpaceId('new')}
+        onOpenSpace={(id, name) => { setOpenSpaceId(id); setOpenSpaceName(name); }}
       />
     );
   }
 
   return (
-    <OrchestratorCanvas
-      onSwitchTool={() => setTool('studio')}
+    <ContentStudioCanvas
+      selectedClient={selectedClient}
+      onSelectClient={setSelectedClient}
+      initialTemplateId={openSpaceId !== 'new' ? openSpaceId : null}
+      spaceName={openSpaceName || 'Nuevo espacio'}
+      onBack={() => { setOpenSpaceId(null); setOpenSpaceName(''); }}
+      onSwitchTool={isAdmin ? () => setTool('orchestrator') : null}
     />
   );
 }

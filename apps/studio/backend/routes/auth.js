@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import db from '../../../BOB-BRAIN/utils/db.js';
+import db from '../../../../core/bot/utils/db.js';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'cliender_jwt_s3cr3t_2026';

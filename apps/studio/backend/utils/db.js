@@ -1,7 +1,13 @@
-// Database stub for Studio
-const db = {
-  prepare: () => ({ run: () => {}, get: () => null, all: () => [] }),
-  exec: () => {},
-};
+// Memory DB stub - no external dependencies
+// Studio uses API-based auth, not direct DB queries
 
-export default db;
+const mockData = {};
+
+export default {
+  prepare: (sql) => ({
+    get: (param) => null,
+    all: () => [],
+    run: (...args) => ({ changes: 0 }),
+  }),
+  exec: (sql) => {}
+};

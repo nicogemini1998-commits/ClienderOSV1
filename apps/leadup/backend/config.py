@@ -16,6 +16,7 @@ class Settings(BaseSettings):
 
     # Server
     port: int = 8002
+    frontend_url: str = "http://localhost:5174"
     environment: str = "development"
 
     # Scheduler

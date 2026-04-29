@@ -24,6 +24,9 @@ const io = new SocketServer(httpServer, {
 app.use(cors());
 app.use(express.json());
 
+// ─── Serve static frontend files ────────────────────────────
+app.use(express.static('public'));
+
 // ─── Auth middleware (optional — attaches user to req) ────────
 app.use((req, res, next) => {
   const auth = req.headers.authorization;

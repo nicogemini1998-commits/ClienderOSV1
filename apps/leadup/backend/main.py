@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -97,3 +98,8 @@ if __name__ == "__main__":
         reload=settings.environment == "development",
         log_level="info",
     )
+
+# Serve static frontend files (SPA)
+from pathlib import Path
+if Path('static').exists():
+    app.mount('/', StaticFiles(directory='static', html=True), name='static')

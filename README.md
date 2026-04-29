@@ -151,3 +151,52 @@ Todos los documentos están organizados en `docs/reference/`:
 
 **Actualizado**: 2026-04-24  
 **Mantenedor**: Cliender Team
+
+## Docker Setup
+
+Proyecto completamente dockerizado. Todos los servicios corren en contenedores aislados:
+
+### Servicios
+
+```
+Studio (Node.js + React)      → :3005
+LeadUp (Python + React)        → :8002
+PostgreSQL (BD compartida)     → :5432
+Adminer (UI de BD)            → :8080
+```
+
+### Inicio rápido
+
+```bash
+# Crear .env desde template
+cp .env.docker .env
+
+# Levantar contenedores
+docker-compose up -d
+
+# Ver logs
+docker-compose logs -f
+```
+
+### Comandos útiles
+
+```bash
+# Detener
+docker-compose down
+
+# Reconstruir
+docker-compose up --build
+
+# Acceder a shell
+docker-compose exec studio sh
+docker-compose exec leadup bash
+docker-compose exec postgres psql -U cliender cliender_db
+```
+
+### Desarrollo
+
+Cambios en backend/frontend se reflejan automáticamente (hot-reload):
+- Node: Usa `npm run dev` con `--watch`
+- Python: Uvicorn con `reload=true`
+
+Documentación completa: [shared/docs/DOCKER_SETUP.md](shared/docs/DOCKER_SETUP.md)

@@ -58,17 +58,14 @@ services:
       PYTHONUNBUFFERED: 1
       PORT: 8002
       FRONTEND_URL: http://localhost:8002
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: cliender_db
-      DB_USER: cliender
-      DB_PASSWORD: cliender_secure_password_change_me
       ENVIRONMENT: development
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-sk-ant-api03-placeholder}
       JWT_SECRET: ${JWT_SECRET:-leadup_secret_jwt_2024_change_this}
       APOLLO_API_KEY: ${APOLLO_API_KEY:-placeholder}
     ports:
       - "8002:8002"
+    volumes:
+      - leadup_data:/app/backend
     depends_on:
       postgres:
         condition: service_healthy
@@ -101,4 +98,6 @@ networks:
 
 volumes:
   postgres_data:
+    driver: local
+  leadup_data:
     driver: local

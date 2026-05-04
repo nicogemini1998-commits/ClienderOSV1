@@ -1,6 +1,7 @@
 from __future__ import annotations
 import logging
 from datetime import date
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel
@@ -20,7 +21,7 @@ class LeadSearchToggle(BaseModel):
 
 
 class AssignNowRequest(BaseModel):
-    user_id: int | None = None
+    user_id: Optional[int] = None
     count: int = 20
 
 

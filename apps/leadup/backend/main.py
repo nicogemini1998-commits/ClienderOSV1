@@ -1,5 +1,6 @@
 from __future__ import annotations
 import logging
+import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
@@ -15,6 +16,7 @@ from config import get_settings
 from database import init_db
 from services.scheduler import get_scheduler
 from routers import auth, leads, admin, notes, contacts
+from init_db import initialize_db
 
 logging.basicConfig(
     level=logging.INFO,
@@ -32,6 +34,7 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("LeadUp API starting up...")
     await init_db()
+    await initialize_db()  # Initialize users and test leads
     scheduler = get_scheduler()
     scheduler.start()
     logger.info(f"Scheduler started — daily job at {settings.scheduler_hour:02d}:{settings.scheduler_minute:02d} Madrid time")
@@ -89,6 +92,12 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
+# Serve static frontend files (SPA)
+from pathlib import Path
+if Path('static').exists():
+    app.mount('/', StaticFiles(directory='static', html=True), name='static')
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
@@ -98,8 +107,3 @@ if __name__ == "__main__":
         reload=settings.environment == "development",
         log_level="info",
     )
-
-# Serve static frontend files (SPA)
-from pathlib import Path
-if Path('static').exists():
-    app.mount('/', StaticFiles(directory='static', html=True), name='static')

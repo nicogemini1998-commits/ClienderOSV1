@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+import logging
 from datetime import date
 from typing import Optional
 
@@ -8,6 +9,8 @@ from pydantic import BaseModel
 
 from auth import get_current_user
 from database import get_conn
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/leads", tags=["leads"])
 
@@ -30,6 +33,7 @@ async def get_today_leads(
 ):
     """Get today's 20 assigned leads for the current user."""
     today = date.today()
+    logger.info(f"Fetching leads for user_id={current_user['id']}, date={today}")
 
     async with get_conn() as conn:
         cursor = await conn.execute(
@@ -79,6 +83,8 @@ async def get_today_leads(
             (current_user["id"], str(today)),
         )
         rows = await cursor.fetchall()
+
+    logger.info(f"Query returned {len(rows)} rows")
 
     leads = []
     for row in rows:

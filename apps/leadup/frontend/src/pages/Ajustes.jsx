@@ -8,11 +8,7 @@ function NavBar({ user, onLogout }) {
     <header className="sticky top-0 z-40 bg-surface/90 backdrop-blur-md border-b border-surface-border">
       <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-7 h-7 bg-accent rounded-lg flex items-center justify-center">
-            <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4 text-white" stroke="currentColor" strokeWidth="2.5">
-              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" strokeLinejoin="round" strokeLinecap="round" />
-            </svg>
-          </div>
+          <img src="/logo.jpg" alt="Cliender" className="w-7 h-7 rounded-lg object-cover" />
           <span className="font-bold text-white text-sm">LeadUp</span>
         </div>
         <nav className="flex items-center gap-1">

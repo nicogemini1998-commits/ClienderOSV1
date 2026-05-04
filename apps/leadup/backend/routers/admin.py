@@ -242,3 +242,25 @@ async def trigger_enrichment(
 
     background_tasks.add_task(_enrich_pending)
     return {"message": "Enriquecimiento iniciado en segundo plano"}
+
+
+@router.post("/scrape-now", tags=["admin"])
+async def scrape_now(
+    background_tasks: BackgroundTasks,
+    current_user: dict = Depends(get_current_user),
+):
+    """Trigger Google Maps scraping immediately (admin only)."""
+    require_admin(current_user)
+
+    from services.google_maps_leads import fetch_and_store_leads
+
+    async def _scrape_task():
+        logger.info("Google Maps scraping initiated by admin")
+        try:
+            stats = await fetch_and_store_leads()
+            logger.info(f"Scraping complete: {stats}")
+        except Exception as e:
+            logger.error(f"Scraping error: {e}")
+
+    background_tasks.add_task(_scrape_task)
+    return {"message": "Scraping iniciado en segundo plano"}

@@ -11,7 +11,7 @@ from apscheduler.triggers.cron import CronTrigger
 
 from config import get_settings
 from database import get_conn
-from services.apollo_leads import fetch_and_store_leads
+from services.google_maps_leads import fetch_and_store_leads
 
 logger = logging.getLogger(__name__)
 settings = get_settings()

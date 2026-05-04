@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     scheduler_hour: int = 8
     scheduler_minute: int = 0
 
+    # Google Maps scraper
+    gmaps_enabled: bool = True
+    gmaps_results_per_search: int = 20
+    gmaps_rate_limit_ms: int = 2500
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

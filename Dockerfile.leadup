@@ -15,16 +15,25 @@ COPY apps/leadup/frontend/ ./
 # Build frontend
 RUN npm run build
 
-# Stage 2: Runtime - Python backend + frontend
+# Stage 2: Runtime - Python backend + Node scraper + frontend
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies (Python build tools + Node + Chromium deps for Puppeteer)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     wget \
+    curl \
+    ca-certificates \
+    chromium \
+    chromium-driver \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js 20
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y --no-install-recommends nodejs && \
+    rm -rf /var/lib/apt/lists/*
 
 # Copy backend requirements
 COPY apps/leadup/backend/requirements.txt ./
@@ -34,6 +43,16 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend source
 COPY apps/leadup/backend/ ./
+
+# Copy Google Maps scraper tool
+COPY tools/google-maps-scraper ./tools/google-maps-scraper
+
+# Install Node dependencies for scraper
+WORKDIR /app/tools/google-maps-scraper
+RUN npm install --production
+
+# Back to app root
+WORKDIR /app
 
 # Copy built frontend from stage 1
 COPY --from=frontend-builder /app/frontend/dist ./static

@@ -1,0 +1,13 @@
+{
+  "name": "google-maps-scraper",
+  "version": "1.0.0",
+  "description": "Google Maps business scraper for lead generation",
+  "main": "scraper.js",
+  "type": "module",
+  "scripts": {
+    "scrape": "node scraper.js"
+  },
+  "dependencies": {
+    "puppeteer": "^22.0.0"
+  }
+}

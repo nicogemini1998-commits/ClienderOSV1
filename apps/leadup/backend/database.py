@@ -98,6 +98,15 @@ async def init_db() -> None:
             ON lu_contacts(company_id)
         """)
 
+        # Migration: add follow_up_date if not present
+        try:
+            await conn.execute(
+                "ALTER TABLE lu_daily_assignments ADD COLUMN follow_up_date TEXT"
+            )
+            await conn.commit()
+        except Exception:
+            pass  # Column already exists
+
         await conn.commit()
 
     logger.info("Database schema initialized")

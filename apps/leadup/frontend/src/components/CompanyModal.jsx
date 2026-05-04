@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import StatusBar from './StatusBar'
-import { notesApi, contactsApi } from '../lib/api'
+import { notesApi, contactsApi, leadsApi } from '../lib/api'
 
 const OPP_STYLES = {
   alta:  'text-emerald-400 bg-emerald-400/10 border-emerald-400/30',
@@ -100,6 +100,21 @@ export default function CompanyModal({ lead, onClose, onStatusChange, onContactC
   const [notes, setNotes] = useState(lead?.notes || '')
   const [savingNotes, setSavingNotes] = useState(false)
   const [notesSaved, setNotesSaved] = useState(false)
+
+  const [followUpDate, setFollowUpDate] = useState(lead?.follow_up_date || '')
+  const [savingFollowUp, setSavingFollowUp] = useState(false)
+
+  const handleFollowUpChange = async (newDate) => {
+    setSavingFollowUp(true)
+    try {
+      await leadsApi.updateFollowup(lead.assignment_id, newDate || null)
+      setFollowUpDate(newDate)
+    } catch (_) {
+      // silently fail
+    } finally {
+      setSavingFollowUp(false)
+    }
+  }
 
   const [contact, setContact] = useState(lead?.contact || null)
   const [editingContact, setEditingContact] = useState(false)
@@ -455,6 +470,38 @@ export default function CompanyModal({ lead, onClose, onStatusChange, onContactC
               </ul>
             </section>
           )}
+
+          {/* RECORDATORIO DE SEGUIMIENTO */}
+          <section>
+            <SectionLabel>Recordatorio de Seguimiento</SectionLabel>
+            <div className="bg-surface-card border border-surface-border rounded-xl p-4 flex items-center gap-4">
+              <div className="flex-1">
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                  Volver a llamar el
+                </label>
+                <input
+                  type="date"
+                  value={followUpDate}
+                  min={new Date().toISOString().split('T')[0]}
+                  onChange={(e) => handleFollowUpChange(e.target.value)}
+                  disabled={savingFollowUp}
+                  className="bg-surface-raised border border-surface-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50 transition-colors disabled:opacity-50 [color-scheme:dark]"
+                />
+              </div>
+              {followUpDate && (
+                <button
+                  onClick={() => handleFollowUpChange('')}
+                  disabled={savingFollowUp}
+                  className="text-xs text-slate-500 hover:text-red-400 transition-colors mt-4 flex-shrink-0"
+                >
+                  Quitar recordatorio
+                </button>
+              )}
+              {savingFollowUp && (
+                <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin mt-4 flex-shrink-0" />
+              )}
+            </div>
+          </section>
 
           {/* NOTAS DEL COMERCIAL */}
           <section>

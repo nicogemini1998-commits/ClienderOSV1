@@ -46,6 +46,8 @@ export const leadsApi = {
   getToday: () => api.get('/leads/today'),
   updateStatus: (assignmentId, status, notes) =>
     api.patch(`/leads/${assignmentId}/status`, { status, notes }),
+  updateFollowup: (assignmentId, followUpDate) =>
+    api.patch(`/leads/${assignmentId}/followup`, { follow_up_date: followUpDate }),
 }
 
 // Notes

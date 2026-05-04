@@ -23,7 +23,9 @@ function NavBar({ user, onLogout, isAdmin }) {
         </div>
 
         <nav className="flex items-center gap-1">
-          <Link to="/" className="btn-ghost text-sm text-white">Dashboard</Link>
+          <Link to="/" className="btn-ghost text-sm text-white font-semibold">Dashboard</Link>
+          <Link to="/pipeline" className="btn-ghost text-sm">Pipeline</Link>
+          <Link to="/scripts" className="btn-ghost text-sm">Scripts</Link>
           {isAdmin && (
             <>
               <Link to="/analytics" className="btn-ghost text-sm">Analytics</Link>

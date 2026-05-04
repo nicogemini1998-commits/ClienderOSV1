@@ -17,6 +17,10 @@ class StatusUpdate(BaseModel):
     notes: Optional[str] = None
 
 
+class FollowUpUpdate(BaseModel):
+    follow_up_date: Optional[str] = None
+
+
 VALID_STATUSES = {"pending", "no_answer", "closed", "rejected"}
 
 
@@ -35,6 +39,7 @@ async def get_today_leads(
                 da.status,
                 da.notes,
                 da.assigned_date,
+                da.follow_up_date,
                 c.id AS company_id,
                 c.name AS company_name,
                 c.website,
@@ -95,6 +100,7 @@ async def get_today_leads(
             "status": row["status"],
             "notes": row["notes"],
             "assigned_date": str(row["assigned_date"]),
+            "follow_up_date": row["follow_up_date"],
             "company": {
                 "id": row["company_id"],
                 "name": row["company_name"],
@@ -170,3 +176,32 @@ async def update_lead_status(
         updated = await cursor.fetchone()
 
     return {"assignment_id": updated["id"], "status": updated["status"], "notes": updated["notes"]}
+
+
+@router.patch("/{assignment_id}/followup")
+async def update_follow_up(
+    assignment_id: int,
+    body: FollowUpUpdate,
+    current_user: dict = Depends(get_current_user),
+):
+    """Set or clear a follow-up reminder date for a lead assignment."""
+    async with get_conn() as conn:
+        cursor = await conn.execute(
+            "SELECT id, user_id FROM lu_daily_assignments WHERE id = ?",
+            (assignment_id,),
+        )
+        row = await cursor.fetchone()
+
+        if not row:
+            raise HTTPException(status_code=404, detail="Asignación no encontrada")
+
+        if current_user["role"] != "admin" and row["user_id"] != current_user["id"]:
+            raise HTTPException(status_code=403, detail="No tienes permiso para modificar este lead")
+
+        await conn.execute(
+            "UPDATE lu_daily_assignments SET follow_up_date = ? WHERE id = ?",
+            (body.follow_up_date, assignment_id),
+        )
+        await conn.commit()
+
+    return {"assignment_id": assignment_id, "follow_up_date": body.follow_up_date}

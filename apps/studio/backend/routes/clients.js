@@ -9,7 +9,7 @@ router.get('/', (req, res) => {
   res.json(clients);
 });
 
-// GET /api/clients/:id  (with execution history)
+// GET /api/clients/:id  (with execution history + space count)
 router.get('/:id', (req, res) => {
   const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id);
   if (!client) return res.status(404).json({ error: 'Not found' });
@@ -23,18 +23,32 @@ router.get('/:id', (req, res) => {
     LIMIT 50
   `).all(req.params.id);
 
-  res.json({ ...client, history });
+  const spaceCount = db.prepare(
+    'SELECT COUNT(*) as c FROM content_templates WHERE client_id = ?'
+  ).get(req.params.id)?.c || 0;
+
+  res.json({ ...client, history, space_count: spaceCount });
 });
 
 // POST /api/clients
 router.post('/', (req, res) => {
-  const { name, company, email, phone, sector, website, ghl_id, notes } = req.body;
+  const {
+    name, company, email, phone, sector, website, ghl_id, notes,
+    brand_description, tone, brand_colors, target_audience,
+  } = req.body;
   if (!name) return res.status(400).json({ error: 'name is required' });
 
   const result = db.prepare(`
-    INSERT INTO clients (name, company, email, phone, sector, website, ghl_id, notes)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(name, company || null, email || null, phone || null, sector || null, website || null, ghl_id || null, notes || null);
+    INSERT INTO clients
+      (name, company, email, phone, sector, website, ghl_id, notes,
+       brand_description, tone, brand_colors, target_audience)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    name,
+    company || null, email || null, phone || null, sector || null,
+    website || null, ghl_id || null, notes || null,
+    brand_description || null, tone || null, brand_colors || null, target_audience || null,
+  );
 
   const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(client);
@@ -42,11 +56,24 @@ router.post('/', (req, res) => {
 
 // PUT /api/clients/:id
 router.put('/:id', (req, res) => {
-  const { name, company, email, phone, sector, website, ghl_id, notes } = req.body;
+  const {
+    name, company, email, phone, sector, website, ghl_id, notes,
+    brand_description, tone, brand_colors, target_audience,
+  } = req.body;
+
   db.prepare(`
-    UPDATE clients SET name=?, company=?, email=?, phone=?, sector=?, website=?, ghl_id=?, notes=?,
-    updated_at=datetime('now') WHERE id=?
-  `).run(name, company || null, email || null, phone || null, sector || null, website || null, ghl_id || null, notes || null, req.params.id);
+    UPDATE clients SET
+      name=?, company=?, email=?, phone=?, sector=?, website=?, ghl_id=?, notes=?,
+      brand_description=?, tone=?, brand_colors=?, target_audience=?,
+      updated_at=datetime('now')
+    WHERE id=?
+  `).run(
+    name,
+    company || null, email || null, phone || null, sector || null,
+    website || null, ghl_id || null, notes || null,
+    brand_description || null, tone || null, brand_colors || null, target_audience || null,
+    req.params.id,
+  );
 
   const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id);
   if (!client) return res.status(404).json({ error: 'Not found' });
@@ -77,7 +104,6 @@ router.post('/sync-ghl', async (req, res) => {
     WHERE ghl_id=?
   `);
 
-  // Limit to 500 most recent contacts (5 pages × 100)
   const MAX_PAGES = 5;
   let synced = 0;
   let nextUrl = `https://rest.gohighlevel.com/v1/contacts/?limit=100`;
@@ -88,7 +114,6 @@ router.post('/sync-ghl', async (req, res) => {
       const resp = await fetch(nextUrl, {
         headers: { Authorization: `Bearer ${apiKey}` },
       });
-
       if (!resp.ok) {
         const txt = await resp.text();
         return res.status(resp.status).json({ error: `GHL API error: ${txt}` });

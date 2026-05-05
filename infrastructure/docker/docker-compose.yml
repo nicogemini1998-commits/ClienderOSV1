@@ -34,6 +34,8 @@ services:
       DB_NAME: cliender_db
       DB_USER: cliender
       DB_PASSWORD: cliender_secure_password_change_me
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      KIE_API_KEY: ${KIE_API_KEY}
     ports:
       - "3005:3005"
     depends_on:

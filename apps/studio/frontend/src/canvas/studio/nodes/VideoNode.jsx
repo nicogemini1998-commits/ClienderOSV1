@@ -525,7 +525,19 @@ export function VideoNode({ id, data }) {
         {/* Generate */}
         <button
           className="nodrag"
-          onClick={handleGenerate}
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            handleGenerate();
+          }}
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+          }}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+          }}
           style={{
             padding: '6px', borderRadius: 8, border: 'none',
             background: 'linear-gradient(135deg, oklch(55% 0.2 155), oklch(46% 0.22 165))',
@@ -534,6 +546,8 @@ export function VideoNode({ id, data }) {
             fontFamily: 'inherit', letterSpacing: '-0.01em',
             boxShadow: '0 4px 14px oklch(55% 0.2 155 / 0.3)',
             transition: 'all 200ms cubic-bezier(0.16,1,0.3,1)',
+            pointerEvents: 'auto',
+            zIndex: 1000,
           }}
         >
           {genStatus === 'submitting' ? '◉ Iniciando...'

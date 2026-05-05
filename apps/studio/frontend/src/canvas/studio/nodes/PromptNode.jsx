@@ -66,16 +66,16 @@ export function PromptNode({ id, data }) {
             delay,
           });
         } else {
-          const newNodeId = `image-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 5)}`;
-          const lastTarget = allNodes.find(n => n.id === targetIds[targetIds.length - 1]);
+          const newNodeId = `${type}-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 5)}`;
+          const baseNode = targetIds.length > 0 ? allNodes.find(n => n.id === targetIds[targetIds.length - 1]) : allNodes.find(n => n.id === id);
           const position = {
-            x: (lastTarget?.position.x || 0) + 400,
-            y: (lastTarget?.position.y || 0) + idx * 150,
+            x: (baseNode?.position.x || 0) + 400,
+            y: (baseNode?.position.y || 0) + idx * 150,
           };
 
           newNodes.push({
             id: newNodeId,
-            type: 'image',
+            type: type === 'video' ? 'video' : 'image',
             position,
             data: {
               incomingPrompt: prompt,
@@ -124,7 +124,7 @@ export function PromptNode({ id, data }) {
     } finally {
       setLoading(false);
     }
-  }, [id, brief, count, selectedStyle?.id, selectedClient?.id, token, canRun, getEdges, getNodes, setNodes, addNodes, addEdges]);
+  }, [id, brief, count, type, selectedStyle?.id, selectedClient?.id, token, canRun, getEdges, getNodes, setNodes, addNodes, addEdges]);
 
   const handleGenerate = async () => {
     if (!canRun) return;
@@ -132,25 +132,62 @@ export function PromptNode({ id, data }) {
     setError('');
     setStatus('generating-prompts');
     setPrompts([]);
+
     try {
-      const res = await fetch('/api/kie/generate', {
+      const res = await fetch('/api/kie/prompts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           brief: brief.trim(),
           style_id: selectedStyle?.id || null,
           client_id: selectedClient?.id || null,
-          user_id: user?.id || null,
           count,
-          type,
-          agent,
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Error generando');
+      if (!res.ok) throw new Error(data.error);
+
+      const generatedPrompts = data.prompts || [];
+      setPrompts(generatedPrompts);
+
+      const allNodes = getNodes();
+      const currentNode = allNodes.find(n => n.id === id);
+      const newNodes = [];
+      const newEdges = [];
+
+      generatedPrompts.forEach((prompt, idx) => {
+        const delay = idx * 120;
+        const newNodeId = `${type}-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 5)}`;
+        const position = {
+          x: (currentNode?.position.x || 0) + 400,
+          y: (currentNode?.position.y || 0) + idx * 150,
+        };
+
+        newNodes.push({
+          id: newNodeId,
+          type: type === 'video' ? 'video' : 'image',
+          position,
+          data: {
+            incomingPrompt: prompt,
+            autoTrigger: Date.now() + delay,
+          },
+        });
+
+        newEdges.push({
+          id: `${id}-${newNodeId}`,
+          source: id,
+          target: newNodeId,
+        });
+      });
+
+      if (newNodes.length > 0) {
+        setTimeout(() => {
+          addNodes(newNodes);
+          addEdges(newEdges);
+        }, 100);
+      }
+
       setStatus('done');
-      setPrompts(data.prompts || []);
-      generateContent?.(data.results || []);
     } catch (err) {
       setStatus('error');
       setError(err.message);

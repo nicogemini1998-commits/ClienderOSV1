@@ -56,6 +56,8 @@ await pool.query(`
     url TEXT NOT NULL,
     type TEXT DEFAULT 'image',
     prompt TEXT,
+    style_name TEXT,
+    agent TEXT,
     metadata TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
@@ -69,7 +71,41 @@ await pool.query(`
     is_predefined INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS templates (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    category TEXT DEFAULT 'custom',
+    is_predefined INTEGER DEFAULT 0,
+    input_config TEXT NOT NULL DEFAULT '{}',
+    agents TEXT NOT NULL DEFAULT '[]',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS executions (
+    id SERIAL PRIMARY KEY,
+    client_id INTEGER REFERENCES clients(id) ON DELETE SET NULL,
+    template_id INTEGER REFERENCES templates(id) ON DELETE SET NULL,
+    status TEXT DEFAULT 'pending',
+    input TEXT,
+    result TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 export default pool;
 export const query = (text, params) => pool.query(text, params);
+
+// Seed predefined photography styles if empty
+const stylesCount = await pool.query('SELECT COUNT(*) FROM photography_styles WHERE is_predefined = 1');
+if (parseInt(stylesCount.rows[0].count) === 0) {
+  await pool.query(`
+    INSERT INTO photography_styles (name, description, prompt_prefix, emoji, is_predefined) VALUES
+    ('Fotografía editorial', 'Estilo limpio y profesional para marcas', 'editorial photography, clean background, professional lighting, brand photography', '📸', 1),
+    ('Dark luxury', 'Fondos oscuros, iluminación dramática', 'dark luxury product photography, dramatic lighting, dark background, premium feel', '🖤', 1),
+    ('Lifestyle natural', 'Luz natural, ambiente cotidiano', 'lifestyle photography, natural light, candid, warm tones, authentic', '☀️', 1),
+    ('Minimalista', 'Composición simple, mucho espacio negativo', 'minimalist product photography, white background, negative space, simple composition', '⬜', 1)
+  `);
+}

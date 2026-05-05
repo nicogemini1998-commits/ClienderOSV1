@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import db from '../utils/db.js';
+import { query } from '../utils/db.js';
 import Anthropic from '@anthropic-ai/sdk';
 
 const router = Router();
@@ -104,9 +104,20 @@ async function pollUntilDone(taskId, maxWaitMs = 180000) {
   throw new Error('Generation timeout (180s)');
 }
 
+// ─── Helpers to fetch style/client from DB ────────────────────
+async function fetchStyle(style_id) {
+  if (!style_id) return null;
+  const { rows } = await query('SELECT * FROM photography_styles WHERE id = $1', [style_id]);
+  return rows[0] || null;
+}
+
+async function fetchClient(client_id) {
+  if (!client_id) return null;
+  const { rows } = await query('SELECT * FROM clients WHERE id = $1', [client_id]);
+  return rows[0] || null;
+}
+
 // ─── POST /api/kie/image — start image tasks ──────────────────
-// Supported models: flux-2/pro-text-to-image, flux-2/flex-text-to-image,
-//   flux-2/pro-image-to-image, google/nano-banana, seedream/4.5-text-to-image
 router.post('/image', async (req, res) => {
   const {
     prompt, brief, use_agent, model = 'flux-2/pro-text-to-image',
@@ -114,11 +125,10 @@ router.post('/image', async (req, res) => {
     count = 1, style_id, client_id, user_id,
   } = req.body;
 
-  const style = style_id ? db.prepare('SELECT * FROM photography_styles WHERE id = ?').get(style_id) : null;
-  const client = client_id ? db.prepare('SELECT * FROM clients WHERE id = ?').get(client_id) : null;
-  const safeCount = Math.min(Math.max(1, Number(count)), 4);
-
   try {
+    const [style, client] = await Promise.all([fetchStyle(style_id), fetchClient(client_id)]);
+    const safeCount = Math.min(Math.max(1, Number(count)), 4);
+
     let prompts;
     if (use_agent && brief) {
       const raw = await runShaqAgent({ brief, style, client, count: safeCount, type: 'image' });
@@ -129,7 +139,6 @@ router.post('/image', async (req, res) => {
       prompts = Array(safeCount).fill(fp);
     }
 
-    // Determine correct model (use image-to-image if reference provided)
     const finalModel = imageInput
       ? model.replace('text-to-image', 'image-to-image')
       : model;
@@ -159,11 +168,10 @@ router.post('/video', async (req, res) => {
     syncAudio = false, resumeLastFrame = false, webSearch = false, contentCheck = false,
   } = req.body;
 
-  const style = style_id ? db.prepare('SELECT * FROM photography_styles WHERE id = ?').get(style_id) : null;
-  const client = client_id ? db.prepare('SELECT * FROM clients WHERE id = ?').get(client_id) : null;
-  const safeCount = Math.min(Math.max(1, Number(count)), 3);
-
   try {
+    const [style, client] = await Promise.all([fetchStyle(style_id), fetchClient(client_id)]);
+    const safeCount = Math.min(Math.max(1, Number(count)), 3);
+
     let prompts;
     if (use_agent && brief) {
       const raw = await runShaqAgent({ brief, style, client, count: safeCount, type: 'video' });
@@ -212,10 +220,8 @@ router.post('/prompts', async (req, res) => {
   const { brief, style_id, client_id, count = 3 } = req.body;
   if (!brief) return res.status(400).json({ error: 'brief required' });
 
-  const style = style_id ? db.prepare('SELECT * FROM photography_styles WHERE id = ?').get(style_id) : null;
-  const client = client_id ? db.prepare('SELECT * FROM clients WHERE id = ?').get(client_id) : null;
-
   try {
+    const [style, client] = await Promise.all([fetchStyle(style_id), fetchClient(client_id)]);
     const prompts = await runShaqAgent({ brief, style, client, count: Math.min(count, 10) });
     res.json({ prompts });
   } catch (err) {
@@ -228,11 +234,10 @@ router.post('/generate', async (req, res) => {
   const { brief, style_id, client_id, user_id, count = 1, type = 'image', agent = '/shaq' } = req.body;
   if (!brief) return res.status(400).json({ error: 'brief required' });
 
-  const style = style_id ? db.prepare('SELECT * FROM photography_styles WHERE id = ?').get(style_id) : null;
-  const client = client_id ? db.prepare('SELECT * FROM clients WHERE id = ?').get(client_id) : null;
-  const safeCount = Math.min(Math.max(1, Number(count)), 4);
-
   try {
+    const [style, client] = await Promise.all([fetchStyle(style_id), fetchClient(client_id)]);
+    const safeCount = Math.min(Math.max(1, Number(count)), 4);
+
     const promptList = await runShaqAgent({ brief, style, client, count: safeCount, type });
     const results = [];
 
@@ -252,12 +257,14 @@ router.post('/generate', async (req, res) => {
         const { url } = await pollUntilDone(taskId);
         if (!url) { results.push({ error: 'No URL', prompt: fp }); continue; }
 
-        const row = db.prepare(`
-          INSERT INTO gallery_items (user_id, client_id, type, url, prompt, style_name, agent, metadata)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(user_id || null, client_id || null, type, url, fp, style?.name || null, agent,
-               JSON.stringify({ brief, style_id }));
-        const saved = db.prepare('SELECT * FROM gallery_items WHERE id = ?').get(row.lastInsertRowid);
+        const { rows } = await query(
+          `INSERT INTO gallery_items (user_id, client_id, type, url, prompt, style_name, agent, metadata)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           RETURNING *`,
+          [user_id || null, client_id || null, type, url, fp, style?.name || null, agent,
+           JSON.stringify({ brief, style_id })]
+        );
+        const saved = rows[0];
         results.push({ ...saved, metadata: JSON.parse(saved.metadata || '{}') });
       } catch (genErr) {
         results.push({ error: genErr.message, prompt: fp });

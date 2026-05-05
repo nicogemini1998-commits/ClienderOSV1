@@ -1,4 +1,4 @@
-import db from './utils/db.js';
+import { query } from './utils/db.js';
 import { hashSync } from 'bcryptjs';
 
 const users = [
@@ -11,22 +11,21 @@ const users = [
 try {
   let createdCount = 0;
 
-  users.forEach(user => {
-    const existing = db.prepare('SELECT * FROM users WHERE email = ?').get(user.email);
-    if (existing) {
+  for (const user of users) {
+    const { rows } = await query('SELECT * FROM users WHERE email = $1', [user.email]);
+    if (rows.length > 0) {
       console.log(`✓ ${user.name} ya existe`);
-      return;
+      continue;
     }
 
     const hash = hashSync(user.password, 10);
-    db.prepare(`INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?)`).run(
-      user.email,
-      user.name,
-      hash
+    await query(
+      'INSERT INTO users (email, name, password_hash) VALUES ($1, $2, $3)',
+      [user.email, user.name, hash]
     );
     console.log(`✓ Usuario creado: ${user.email} / ${user.password}`);
     createdCount++;
-  });
+  }
 
   console.log(`\n✓ ${createdCount} usuarios nuevos creados`);
   process.exit(0);

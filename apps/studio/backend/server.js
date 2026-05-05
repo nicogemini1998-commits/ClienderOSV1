@@ -5,7 +5,7 @@ import jwt from 'jsonwebtoken';
 import { createServer } from 'http';
 import { Server as SocketServer } from 'socket.io';
 import { logger } from './utils/logger.js';
-import db from './utils/db.js';
+import { query as dbQuery } from './utils/db.js';
 // import { executeDynamicWorkflow } from './agentes/executor.js' // optional;
 import clientsRouter from './routes/clients.js';
 import templatesRouter from './routes/templates.js';
@@ -56,18 +56,24 @@ app.post('/api/workflows/execute', async (req, res) => {
   const { input, templateId, clientId } = req.body;
   if (!templateId) return res.status(400).json({ error: 'templateId required' });
 
-  const raw = db.prepare('SELECT * FROM templates WHERE id = ?').get(templateId);
+  const { rows: templateRows } = await dbQuery('SELECT * FROM templates WHERE id = $1', [templateId]);
+  const raw = templateRows[0];
   if (!raw) return res.status(404).json({ error: 'Template not found' });
 
   const template = { ...raw, agents: JSON.parse(raw.agents), input_config: JSON.parse(raw.input_config) };
-  const client = clientId ? db.prepare('SELECT * FROM clients WHERE id = ?').get(clientId) : null;
+  let client = null;
+  if (clientId) {
+    const { rows: clientRows } = await dbQuery('SELECT * FROM clients WHERE id = $1', [clientId]);
+    client = clientRows[0] || null;
+  }
 
   try {
     const result = await executeDynamicWorkflow({ input, template, client });
 
-    db.prepare(`INSERT INTO executions (client_id, template_id, status, input, result)
-                VALUES (?, ?, 'completed', ?, ?)`
-    ).run(clientId || null, templateId, JSON.stringify(input), JSON.stringify(result));
+    await dbQuery(
+      `INSERT INTO executions (client_id, template_id, status, input, result) VALUES ($1, $2, 'completed', $3, $4)`,
+      [clientId || null, templateId, JSON.stringify(input), JSON.stringify(result)]
+    );
 
     io.emit('workflow:completed', { client: client?.name, template: template.name });
     res.json(result);
@@ -77,15 +83,20 @@ app.post('/api/workflows/execute', async (req, res) => {
 });
 
 // ─── REST: client history ─────────────────────────────────────
-app.get('/api/workflows/history/:clientId', (req, res) => {
-  const rows = db.prepare(`
-    SELECT e.*, t.name as template_name
-    FROM executions e
-    LEFT JOIN templates t ON e.template_id = t.id
-    WHERE e.client_id = ?
-    ORDER BY e.created_at DESC LIMIT 50
-  `).all(req.params.clientId);
-  res.json(rows);
+app.get('/api/workflows/history/:clientId', async (req, res) => {
+  try {
+    const { rows } = await dbQuery(
+      `SELECT e.*, t.name as template_name
+       FROM executions e
+       LEFT JOIN templates t ON e.template_id = t.id
+       WHERE e.client_id = $1
+       ORDER BY e.created_at DESC LIMIT 50`,
+      [req.params.clientId]
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ─── WebSocket ────────────────────────────────────────────────
@@ -98,14 +109,19 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const raw = db.prepare('SELECT * FROM templates WHERE id = ?').get(templateId);
+    const { rows: templateRows } = await dbQuery('SELECT * FROM templates WHERE id = $1', [templateId]);
+    const raw = templateRows[0];
     if (!raw) {
       socket.emit('workflow:error', { error: 'Template not found' });
       return;
     }
 
     const template = { ...raw, agents: JSON.parse(raw.agents), input_config: JSON.parse(raw.input_config) };
-    const client = clientId ? db.prepare('SELECT * FROM clients WHERE id = ?').get(clientId) : null;
+    let client = null;
+    if (clientId) {
+      const { rows: clientRows } = await dbQuery('SELECT * FROM clients WHERE id = $1', [clientId]);
+      client = clientRows[0] || null;
+    }
 
     logger.info(`▶ Workflow: ${template.name} · client: ${client?.name || 'none'}`);
 
@@ -116,9 +132,10 @@ io.on('connection', (socket) => {
 
       const result = await executeDynamicWorkflow({ input, template, client, onProgress });
 
-      db.prepare(`INSERT INTO executions (client_id, template_id, status, input, result)
-                  VALUES (?, ?, 'completed', ?, ?)`
-      ).run(clientId || null, templateId, JSON.stringify(input), JSON.stringify(result));
+      await dbQuery(
+        `INSERT INTO executions (client_id, template_id, status, input, result) VALUES ($1, $2, 'completed', $3, $4)`,
+        [clientId || null, templateId, JSON.stringify(input), JSON.stringify(result)]
+      );
 
       socket.emit('workflow:success', result);
       io.emit('workflow:completed', { client: client?.name, template: template.name, ts: new Date().toISOString() });

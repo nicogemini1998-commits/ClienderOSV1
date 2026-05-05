@@ -3,9 +3,7 @@ import { Handle, Position, useReactFlow } from '@xyflow/react';
 import { StudioContext } from '../StudioContext.jsx';
 
 const MODELS = [
-  { id: 'flux-2/pro-text-to-image', label: 'Flux 2 Pro' },
-  { id: 'flux-2/flex-text-to-image', label: 'Flux 2 Flex' },
-  { id: 'google/nano-banana', label: 'Nano Banana (rápido)' },
+  { id: 'gpt-image-2-text-to-image', label: 'GPT-2 IMAGE' },
 ];
 
 const ASPECT_RATIOS = ['1:1', '4:5', '3:4', '16:9', '9:16', '5:4', '2:3', '3:2'];
@@ -113,7 +111,7 @@ export function ImageNode({ id, data }) {
   const { selectedClient, selectedStyle, user, token, generateContent } = useContext(StudioContext);
   const { deleteElements } = useReactFlow();
 
-  const [model, setModel] = useState(data?.model || 'flux-2/pro-text-to-image');
+  const [model, setModel] = useState(data?.model || 'gpt-image-2-text-to-image');
   const [prompt, setPrompt] = useState(data?.prompt || '');
   const [useAgent, setUseAgent] = useState(data?.useAgent || false);
   const [brief, setBrief] = useState(data?.brief || '');
@@ -232,9 +230,9 @@ export function ImageNode({ id, data }) {
           <div style={{ fontSize: 11, fontWeight: 700, color: 'oklch(92% 0 0)' }}>Imagen</div>
           <div style={{ fontSize: 9, color: statusColor, transition: 'color 300ms' }}>{statusLabel}</div>
         </div>
-        <select className="nodrag" value={model} onChange={e => setModel(e.target.value)} style={{ fontSize: 9, background: 'oklch(100% 0 0 / 0.07)', border: 'none', borderRadius: 6, color: 'oklch(72% 0.15 265)', padding: '4px 7px', cursor: 'pointer', fontFamily: 'inherit', outline: 'none', maxWidth: 130 }}>
-          {MODELS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
-        </select>
+        <div style={{ fontSize: 9, background: 'oklch(100% 0 0 / 0.07)', borderRadius: 6, color: 'oklch(72% 0.15 265)', padding: '4px 7px', fontFamily: 'inherit', fontWeight: 600 }}>
+          {MODELS[0].label}
+        </div>
         <button
           className="nodrag"
           onClick={() => deleteElements({ nodes: [{ id }] })}

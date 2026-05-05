@@ -120,7 +120,7 @@ async function fetchClient(client_id) {
 // ─── POST /api/kie/image — start image tasks ──────────────────
 router.post('/image', async (req, res) => {
   const {
-    prompt, brief, use_agent,
+    prompt, brief, use_agent, imageInput = null,
     count = 1, style_id, client_id, user_id,
   } = req.body;
 
@@ -141,6 +141,7 @@ router.post('/image', async (req, res) => {
     const taskIds = await Promise.all(prompts.map(p => {
       const input = {
         prompt: p,
+        ...(imageInput && { image_input: imageInput }),
       };
       return kieCreateTask('gpt-image-2-text-to-image', input);
     }));

@@ -46,7 +46,12 @@ async def assign_now(
         )
         return {"message": f"Asignación iniciada para {user['name']}", "user_id": body.user_id}
 
-    background_tasks.add_task(trigger_manual_assignment)
+    import asyncio
+
+    def run_assignment():
+        asyncio.run(trigger_manual_assignment())
+
+    background_tasks.add_task(run_assignment)
     return {"message": "Asignación masiva iniciada para todos los usuarios activos"}
 
 
@@ -252,12 +257,12 @@ async def scrape_now(
     """Trigger Google Maps scraping immediately (admin only)."""
     require_admin(current_user)
 
-    from services.google_maps_leads import fetch_and_store_leads
+    from services.google_maps_leads import scrape_and_enrich_leads
 
     async def _scrape_task():
         logger.info("Google Maps scraping initiated by admin")
         try:
-            stats = await fetch_and_store_leads()
+            stats = await scrape_and_enrich_leads()
             logger.info(f"Scraping complete: {stats}")
         except Exception as e:
             logger.error(f"Scraping error: {e}")

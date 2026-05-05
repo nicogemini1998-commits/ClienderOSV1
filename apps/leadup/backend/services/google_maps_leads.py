@@ -4,7 +4,7 @@ import logging
 import asyncio
 import subprocess
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, date
 
 from database import get_conn
 from services.enrichment import enrich_company
@@ -71,9 +71,9 @@ async def scrape_google_maps(query: str, city: str, limit: int = 20) -> list[dic
         return []
 
 
-async def fetch_and_store_leads(cities: Optional[list[str]] = None, terms: Optional[list[str]] = None) -> dict:
+async def scrape_and_enrich_leads(cities: Optional[list[str]] = None, terms: Optional[list[str]] = None) -> dict:
     """
-    Fetch leads from Google Maps for all cities and terms, enrich with Claude, store to database.
+    Scrape leads from Google Maps for all cities and terms, enrich with Claude, store to database.
     Returns stats: total_scraped, total_stored, duplicates_skipped, enrichment_errors
     """
     if cities is None:
@@ -178,3 +178,65 @@ async def fetch_and_store_leads(cities: Optional[list[str]] = None, terms: Optio
 
     logger.info(f"Lead fetch complete: {stats}")
     return stats
+
+
+async def fetch_and_store_leads(
+    conn,
+    user_id: int,
+    target_count: int = 20,
+    assign_date: Optional[date] = None
+) -> int:
+    """
+    Assign existing leads from pool to a user for a given date.
+    Compatible with scheduler.py interface.
+    Returns number of leads assigned.
+    """
+    if assign_date is None:
+        assign_date = date.today()
+
+    try:
+        # Get companies not yet assigned to this user (allow multiple users to have same company)
+        cursor = await conn.execute(
+            """
+            SELECT c.id FROM lu_companies c
+            WHERE NOT EXISTS (
+                SELECT 1 FROM lu_daily_assignments da
+                WHERE da.company_id = c.id
+                AND da.user_id = ?
+                AND da.assigned_date = ?
+            )
+            LIMIT ?
+            """,
+            (user_id, str(assign_date), target_count)
+        )
+        companies = await cursor.fetchall()
+
+        if not companies:
+            logger.info(f"No available leads for user {user_id}")
+            return 0
+
+        # Assign leads to user
+        assigned_count = 0
+        for company in companies:
+            try:
+                await conn.execute(
+                    """
+                    INSERT INTO lu_daily_assignments
+                    (company_id, user_id, assigned_date, status)
+                    VALUES (?, ?, ?, 'pending')
+                    """,
+                    (company["id"], user_id, str(assign_date))
+                )
+                assigned_count += 1
+            except Exception as e:
+                logger.debug(f"Could not assign company {company['id']} to user {user_id}: {e}")
+                continue
+
+        await conn.commit()
+
+        logger.info(f"Assigned {assigned_count} leads to user {user_id} for {assign_date}")
+        return assigned_count
+
+    except Exception as e:
+        logger.error(f"Error assigning leads to user {user_id}: {e}")
+        return 0

@@ -57,10 +57,6 @@ WORKDIR /app
 # Copy built frontend from stage 1
 COPY --from=frontend-builder /app/frontend/dist ./static
 
-# Create non-root user
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
-USER appuser
-
 # Expose port
 EXPOSE 8002
 

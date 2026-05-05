@@ -142,7 +142,7 @@ router.post('/image', async (req, res) => {
       const input = {
         prompt: p,
       };
-      return kieCreateTask('openai/gpt-image-2', input);
+      return kieCreateTask('gpt-image-2-text-to-image', input);
     }));
 
     res.json({ success: true, taskIds, prompts });
@@ -242,7 +242,7 @@ router.post('/generate', async (req, res) => {
             prompt: fp, resolution: '720p', aspect_ratio: '16:9', duration: 5,
           });
         } else {
-          taskId = await kieCreateTask('openai/gpt-image-2', {
+          taskId = await kieCreateTask('gpt-image-2-text-to-image', {
             prompt: fp,
           });
         }

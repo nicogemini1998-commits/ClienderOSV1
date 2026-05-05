@@ -120,8 +120,7 @@ async function fetchClient(client_id) {
 // ─── POST /api/kie/image — start image tasks ──────────────────
 router.post('/image', async (req, res) => {
   const {
-    prompt, brief, use_agent, model = 'flux-2/pro-text-to-image',
-    aspectRatio = '1:1', resolution = '1K', imageInput,
+    prompt, brief, use_agent,
     count = 1, style_id, client_id, user_id,
   } = req.body;
 
@@ -139,18 +138,11 @@ router.post('/image', async (req, res) => {
       prompts = Array(safeCount).fill(fp);
     }
 
-    const finalModel = imageInput
-      ? model.replace('text-to-image', 'image-to-image')
-      : model;
-
     const taskIds = await Promise.all(prompts.map(p => {
       const input = {
         prompt: p,
-        aspect_ratio: aspectRatio,
-        resolution,
-        ...(imageInput && { image_input: Array.isArray(imageInput) ? imageInput : [imageInput] }),
       };
-      return kieCreateTask(finalModel, input);
+      return kieCreateTask('openai/gpt-image-2', input);
     }));
 
     res.json({ success: true, taskIds, prompts });
@@ -247,11 +239,11 @@ router.post('/generate', async (req, res) => {
         let taskId;
         if (type === 'video') {
           taskId = await kieCreateTask('bytedance/seedance-2', {
-            prompt: fp, resolution: '720p', aspect_ratio: '16:9', duration: 5, generate_audio: false,
+            prompt: fp, resolution: '720p', aspect_ratio: '16:9', duration: 5,
           });
         } else {
-          taskId = await kieCreateTask('flux-2/pro-text-to-image', {
-            prompt: fp, aspect_ratio: '1:1', resolution: '1K',
+          taskId = await kieCreateTask('openai/gpt-image-2', {
+            prompt: fp,
           });
         }
         const { url } = await pollUntilDone(taskId);

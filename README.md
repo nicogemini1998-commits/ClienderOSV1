@@ -1,202 +1,134 @@
-# 🚀 Cliender OS v1
+# ClienderOS V1
 
-**Plataforma integrada de IA para orquestación, diseño de contenido y prospección automática**
+Sistema integrado de gestión de contenido y CRM construido con tecnologías modernas.
 
-Herramientas especializadas para generación de contenido visual con IA, orquestación de flujos de trabajo y prospección B2B automática.
+## 📦 Aplicaciones
 
----
+### Studio
+Herramienta visual para crear y gestionar contenido con IA.
+- **Tech:** React + Express + PostgreSQL
+- **Puerto:** 3005
+- **Estado:** ✅ Funcional en Docker & Producción
+- **Usuarios:** 4 cuentas de desarrollo predefinidas
 
-## ✨ Características
+### LeadUp
+CRM para equipos comerciales con gestión de leads y pipeline.
+- **Tech:** React + Python + PostgreSQL
+- **Puerto:** 8002
+- **Estado:** ✅ Funcional en Docker
 
-### 🎨 Studio - Diseño de Contenido
-- Generación de imágenes con **Flux** (KIE AI)
-- Generación de videos con **Seedance 2.0** (KIE AI)
-- Enhancement de prompts con Claude Haiku (`/shaq` agent)
-- Canvas visual con **ReactFlow**
-- Galería integrada con historial
+## 🚀 Inicio rápido
 
-### 🤖 Prospección - LeadUp
-- Búsqueda y enriquecimiento automático de leads B2B
-- Filtrado por sector (construcción, reformas)
-- Distribución diaria a equipo comercial
-- Análisis de IA por lead
-
-### 📋 Orquestador [En desarrollo]
-- Flujos de trabajo templados
-- Ejecución automática de procesos
-- Integración con múltiples APIs
-
-### 💰 Optimizado
-- APIs eficientes con Claude Haiku
-- Caching inteligente
-- Arquitectura escalable
-
----
-
-## 🚀 Quick Start
-
+### Local (Docker)
 ```bash
-# 1. Instalar dependencias
-npm install
+docker-compose -f infrastructure/docker/docker-compose.yml up -d
+```
 
-# 2. Configurar variables
+- Studio: http://localhost:3005
+- LeadUp: http://localhost:8002
+- PostgreSQL: localhost:5432
+
+### Producción (VPS)
+Consultar `/docs/deployment/` para instrucciones.
+
+## 🔐 Credenciales (Desarrollo)
+
+```
+Studio:
+  nicolas@cliender.com / Master123
+  toni@cliender.com / Cliender123
+  sara@cliender.com / Cliender123
+  pablo@cliender.com / Cliender123
+```
+
+## 📁 Estructura
+
+```
+ClienderOS/
+├── apps/                  # Aplicaciones principales
+│   ├── studio/           # Tool de creación de contenido
+│   ├── leadup/           # CRM comercial
+│   └── shared/           # Recursos compartidos
+├── infrastructure/        # Deploy y configuración
+│   ├── docker/           # Dockerfiles + docker-compose
+│   └── deploy/           # Scripts de deployment
+├── docs/                 # Documentación
+├── scripts/              # Herramientas de desarrollo
+├── tests/                # Pruebas automatizadas
+└── .tools/               # Herramientas internas
+
+```
+
+## 🛠️ Desarrollo
+
+### Requisitos
+- Node.js v20+ (v22 recomendado)
+- Docker & Docker Compose
+- PostgreSQL 16+
+
+### Setup
+```bash
+# Variables de entorno
 cp .env.example .env
-# Editar: ANTHROPIC_API_KEY, KIE_API_KEY, JWT_SECRET
 
-# 3. Studio Backend (Terminal 1)
-cd apps/studio/backend
+# Instalar dependencias
 npm install
-npm start  # Puerto 3005
-
-# 4. Studio Frontend (Terminal 2)
-cd apps/studio/frontend
-npm install
-npm run dev  # Puerto 5177
-
-# 5. Abrir navegador
-http://localhost:5177
+cd apps/studio && npm install
+cd ../leadup && npm install
 ```
 
----
-
-## 📊 Arquitectura
-
-```
-Studio Frontend (React + ReactFlow)
-    ↓ REST API
-Studio Backend (Express)
-    ↓
-Core Bot (Agentes IA + Utilidades)
-    ↓
-SQLite Database
-```
-
----
-
-## 📁 Estructura Actual
-
-```
-ClienderOSV1/
-├── apps/
-│   ├── studio/              # Herramienta de diseño
-│   │   ├── backend/         # Express + rutas KIE/Anthropic
-│   │   └── frontend/        # React + ReactFlow canvas
-│   ├── orchestrator/        # [En desarrollo]
-│   └── leadup/              # Prospección B2B
-│
-├── core/
-│   ├── bot/                 # Agentes IA + executor
-│   └── utils/               # Helpers compartidos
-│
-├── docs/
-│   ├── reference/           # Documentación y contextos
-│   ├── guides/              # Guías de implementación
-│   └── architecture/        # Decisiones técnicas
-│
-├── data/                    # SQLite database
-├── imagenes/                # Screenshots y diseños
-├── scripts/                 # Utilidades
-└── config/                  # Configuración global
-```
-
----
-
-## 🔧 Tecnologías
-
-**Frontend**
-- React 19 + Vite
-- ReactFlow (canvas visual)
-- Vite + SWC
-- Tailwind CSS
-
-**Backend**
-- Express.js 4.x
-- SQLite3 (better-sqlite3)
-- Anthropic SDK
-- Node.js (ESM)
-
-**APIs Externas**
-- Anthropic Claude (prompts, enhancement)
-- KIE AI (generación imagen/video)
-
----
-
-## 📂 Guía de Uso
-
-### Documentación
-Todos los documentos están organizados en `docs/reference/`:
-- `BOB_INSTRUCTIONS.md` - Instrucciones principales
-- `BOB_AGENTES_v2_EXPLICACION.md` - Arquitectura de agentes
-- `CLIENDER_PROJECT_AUDIT.md` - Auditoría del proyecto
-- Y más...
-
-### Flujo de Desarrollo
-1. **Idea** → Documente en `docs/`
-2. **Código** → Organice en `apps/` o `core/`
-3. **Commit** → Use mensaje descriptivo
-4. **Push** → A rama main
-
----
-
-## ✅ Estatus de Organización
-
-- ✅ Todas las carpetas tienen propósito claro
-- ✅ Documentación centralizada en `docs/reference/`
-- ✅ Apps aisladas con estructura uniforme
-- ✅ Código compartido en `core/`
-- ✅ Sin archivos sueltos en la raíz
-- ✅ Estructura lista para escalar
-
----
-
-**Actualizado**: 2026-04-24  
-**Mantenedor**: Cliender Team
-
-## Docker Setup
-
-Proyecto completamente dockerizado. Todos los servicios corren en contenedores aislados:
-
-### Servicios
-
-```
-Studio (Node.js + React)      → :3005
-LeadUp (Python + React)        → :8002
-PostgreSQL (BD compartida)     → :5432
-Adminer (UI de BD)            → :8080
-```
-
-### Inicio rápido
-
+### Build & Deploy
 ```bash
-# Crear .env desde template
-cp .env.docker .env
+# Desarrollo local
+docker-compose -f infrastructure/docker/docker-compose.yml up -d
 
-# Levantar contenedores
-docker-compose up -d
+# Compilar frontend
+cd apps/studio && npm run build
+cd ../leadup && npm run build
 
-# Ver logs
-docker-compose logs -f
+# Logs en tiempo real
+docker-compose -f infrastructure/docker/docker-compose.yml logs -f
 ```
 
-### Comandos útiles
+## 📚 Documentación
 
-```bash
-# Detener
-docker-compose down
+- [Arquitectura](docs/architecture/)
+- [Deployment](docs/deployment/)
+- [API Reference](docs/reference/)
+- [Guías de desarrollo](docs/guides/)
 
-# Reconstruir
-docker-compose up --build
+## 🔄 Versión Actual
 
-# Acceder a shell
-docker-compose exec studio sh
-docker-compose exec leadup bash
-docker-compose exec postgres psql -U cliender cliender_db
-```
+- **Studio:** PostgreSQL backend ✅
+- **LeadUp:** Google Maps integration ✅
+- **Docker:** Compatible con ARM64 Mac ✅
+- **GitHub:** Repositorio sincronizado ✅
 
-### Desarrollo
+## 📝 Notas Importantes
 
-Cambios en backend/frontend se reflejan automáticamente (hot-reload):
-- Node: Usa `npm run dev` con `--watch`
-- Python: Uvicorn con `reload=true`
+1. **Base de datos:** Usa PostgreSQL (no SQLite). Migración completada.
+2. **Frontend SPA:** React Router requiere configuración de nginx para catch-all.
+3. **SSL/TLS:** En producción, configurado con Let's Encrypt via Certbot.
+4. **PM2:** Gestiona procesos Node.js en VPS.
 
-Documentación completa: [shared/docs/DOCKER_SETUP.md](shared/docs/DOCKER_SETUP.md)
+## 🐛 Troubleshooting
+
+| Problema | Solución |
+|----------|----------|
+| "db.prepare is not a function" | Migración incompleta a PostgreSQL. Actualizar todas las routes. |
+| Puerto 3005 en uso | `lsof -i :3005` y detener el proceso anterior. |
+| PostgreSQL no conecta | Verificar DB_HOST, DB_USER, DB_PASSWORD en .env |
+| Docker build lento | Usar `--no-cache` y limpiar imágenes viejas: `docker system prune` |
+
+## 📊 Estadísticas del Proyecto
+
+- **Líneas de código:** ~15,000+
+- **Commits:** 100+
+- **Cobertura:** Pruebas en progreso
+- **Tiempo de setup:** <5 min (Docker)
+
+---
+
+**Última actualización:** 2026-05-05  
+**Mantenedor:** @nicolasag  
+**Licencia:** Privado (Cliender)

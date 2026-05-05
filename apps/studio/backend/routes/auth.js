@@ -14,6 +14,27 @@ const TEMP_USERS = {
     email: 'nicolas@cliender.com',
     password_hash: '$2b$10$LPbexiipPZ3yl2Ng3FH.neVlYQe2qLStr9W0tlsAtAKcztOLAWXg.',
     role: 'admin'
+  },
+  'toni@cliender.com': {
+    id: 2,
+    name: 'Toni',
+    email: 'toni@cliender.com',
+    password_hash: '$2b$10$keEcNXsGl/rJjIo4xhwXr.QJtSIiXo.mCTyvzo9k53WChqAKL.gQS',
+    role: 'admin'
+  },
+  'sara@cliender.com': {
+    id: 3,
+    name: 'Sara',
+    email: 'sara@cliender.com',
+    password_hash: '$2b$10$jBgLkA0fmg.3f1kaPJNWt.p8fifmCz6E6Y8jDRZUVXYrsBodHpXTi',
+    role: 'admin'
+  },
+  'pablo@cliender.com': {
+    id: 4,
+    name: 'Pablo',
+    email: 'pablo@cliender.com',
+    password_hash: '$2b$10$kM4sTYuqBhRMIUtNhZe5cO3wMKbpNFjPusuApUuQKNTXXx50zVo32',
+    role: 'admin'
   }
 };
 

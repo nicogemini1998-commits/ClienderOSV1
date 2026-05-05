@@ -1,52 +1,37 @@
-import Database from 'better-sqlite3';
-import { hashSync } from 'bcryptjs';
+import Database from 'sqlite3';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { mkdirSync } from 'fs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dbPath = path.join(__dirname, 'cliender.db');
+const DATA_DIR = path.join(__dirname, 'data');
+const DB_PATH = process.env.DB_PATH || path.join(DATA_DIR, 'cliender.db');
 
-const db = new Database(dbPath);
-db.pragma('journal_mode = WAL');
+mkdirSync(DATA_DIR, { recursive: true });
 
-const adminUser = {
-  email: 'admin@studio.com',
-  name: 'Admin',
-  password: 'Master123'
-};
-
-try {
-  // Create users table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      name TEXT NOT NULL,
-      password_hash TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  // Check if admin exists
-  const existing = db.prepare('SELECT * FROM users WHERE email = ?').get(adminUser.email);
-  if (existing) {
-    console.log('✓ Admin user exists');
-    process.exit(0);
+const db = new Database.Database(DB_PATH, (err) => {
+  if (err) {
+    console.error('Error opening database:', err);
+    process.exit(1);
   }
-
-  // Create admin
-  const hash = hashSync(adminUser.password, 10);
-  db.prepare(`INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?)`).run(
-    adminUser.email,
-    adminUser.name,
-    hash
-  );
-
-  console.log(`✓ Admin created: ${adminUser.email} / ${adminUser.password}`);
-  process.exit(0);
-} catch (err) {
-  console.error('✗ Error:', err.message);
-  process.exit(1);
-} finally {
-  db.close();
-}
+  
+  db.serialize(() => {
+    db.run('PRAGMA journal_mode = WAL');
+    db.run('PRAGMA foreign_keys = ON');
+    
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT UNIQUE NOT NULL,
+        name TEXT NOT NULL,
+        password_hash TEXT NOT NULL,
+        role TEXT DEFAULT 'user',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `, (err) => {
+      if (err) console.error('Error creating tables:', err);
+      else console.log('Database initialized');
+      process.exit(0);
+    });
+  });
+});

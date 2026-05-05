@@ -3,41 +3,26 @@ FROM node:20-alpine AS frontend-builder
 
 WORKDIR /app/frontend
 
-# Copy frontend package files
 COPY apps/studio/frontend/package*.json ./
-
-# Install dependencies
 RUN npm ci
 
-# Copy frontend source
 COPY apps/studio/frontend/ ./
-
-# Build frontend
 RUN npm run build
 
-# Stage 2: Runtime - Node.js backend + frontend
+# Stage 2: Node.js backend + frontend
 FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy backend package files
 COPY apps/studio/backend/package*.json ./
+RUN npm install --only=production
 
-# Install backend dependencies
-RUN npm ci --only=production
-
-# Copy backend source
 COPY apps/studio/backend/ ./
-
-# Copy built frontend from stage 1
 COPY --from=frontend-builder /app/frontend/dist ./public
 
-# Expose port
 EXPOSE 3005
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD wget --quiet --tries=1 --spider http://localhost:3005/health || exit 1
 
-# Start application directly
 CMD ["node", "server.js"]

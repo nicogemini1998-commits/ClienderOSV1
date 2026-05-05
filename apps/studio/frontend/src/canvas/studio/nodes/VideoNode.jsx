@@ -232,7 +232,11 @@ export function VideoNode({ id, data }) {
 
   const handleGenerate = async (explicitPrompt = null) => {
     const resolvedPrompt = explicitPrompt ?? (useAgent ? brief : prompt);
-    if (!resolvedPrompt.trim()) return;
+    if (!resolvedPrompt.trim()) {
+      setErrorMsg('Por favor escribe un prompt o brief');
+      setGenStatus('error');
+      return;
+    }
     setGenStatus('submitting');
     setErrorMsg('');
     setTasks([]);
@@ -522,16 +526,13 @@ export function VideoNode({ id, data }) {
         <button
           className="nodrag"
           onClick={handleGenerate}
-          disabled={!canGenerate}
           style={{
             padding: '6px', borderRadius: 8, border: 'none',
-            background: canGenerate
-              ? 'linear-gradient(135deg, oklch(55% 0.2 155), oklch(46% 0.22 165))'
-              : 'oklch(20% 0 0)',
-            color: canGenerate ? 'oklch(97% 0 0)' : 'oklch(38% 0 0)',
-            fontSize: 9, fontWeight: 700, cursor: canGenerate ? 'pointer' : 'not-allowed',
+            background: 'linear-gradient(135deg, oklch(55% 0.2 155), oklch(46% 0.22 165))',
+            color: 'oklch(97% 0 0)',
+            fontSize: 9, fontWeight: 700, cursor: 'pointer',
             fontFamily: 'inherit', letterSpacing: '-0.01em',
-            boxShadow: canGenerate ? '0 4px 14px oklch(55% 0.2 155 / 0.3)' : 'none',
+            boxShadow: '0 4px 14px oklch(55% 0.2 155 / 0.3)',
             transition: 'all 200ms cubic-bezier(0.16,1,0.3,1)',
           }}
         >

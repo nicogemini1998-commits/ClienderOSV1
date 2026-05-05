@@ -18,16 +18,39 @@ function GalleryItem({ item, onDelete }) {
   return (
     <>
       {fullscreen && (
-        <div onClick={() => setFullscreen(false)} style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'oklch(5% 0 0 / 0.96)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out', gap: 12 }}>
-          {isVideo
-            ? <video src={item.url} controls autoPlay style={{ maxWidth: '90vw', maxHeight: '80vh', borderRadius: 12 }} />
-            : <img src={item.url} alt="" style={{ maxWidth: '90vw', maxHeight: '80vh', borderRadius: 12, objectFit: 'contain' }} />
-          }
+        <div
+          onClick={() => setFullscreen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            background: 'oklch(3% 0 0 / 0.97)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'zoom-out',
+            gap: 16,
+            backdropFilter: 'blur(8px)',
+          }}
+        >
+          <div style={{ position: 'relative', maxWidth: '90vw', maxHeight: '85vh', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            {isVideo
+              ? <video src={item.url} controls autoPlay style={{ maxWidth: '100%', maxHeight: '85vh', borderRadius: 16, objectFit: 'contain', boxShadow: '0 24px 72px oklch(0% 0 0 / 0.5)' }} />
+              : <img src={item.url} alt="" style={{ maxWidth: '100%', maxHeight: '85vh', borderRadius: 16, objectFit: 'contain', boxShadow: '0 24px 72px oklch(0% 0 0 / 0.5)' }} />
+            }
+          </div>
           {item.prompt && (
-            <div style={{ maxWidth: 600, fontSize: 11, color: 'oklch(55% 0 0)', textAlign: 'center', fontFamily: 'IBM Plex Mono, monospace', lineHeight: 1.5, padding: '0 24px' }}>
-              {item.prompt.slice(0, 200)}{item.prompt.length > 200 ? '...' : ''}
+            <div style={{ maxWidth: 700, fontSize: 12, color: 'oklch(65% 0 0)', textAlign: 'center', fontFamily: 'IBM Plex Mono, monospace', lineHeight: 1.6, padding: '0 32px', marginBottom: 12 }}>
+              "{item.prompt.slice(0, 250)}{item.prompt.length > 250 ? '...' : ''}"
             </div>
           )}
+          <button
+            onClick={(e) => { e.stopPropagation(); setFullscreen(false); }}
+            style={{ position: 'absolute', top: 20, right: 20, background: 'oklch(0% 0 0 / 0.5)', border: 'none', color: 'oklch(90% 0 0)', fontSize: 24, cursor: 'pointer', padding: '8px 12px', borderRadius: 8, transition: 'all 200ms', backdropFilter: 'blur(8px)' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'oklch(0% 0 0 / 0.7)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'oklch(0% 0 0 / 0.5)'}
+          >✕</button>
         </div>
       )}
       <div style={{ borderRadius: 8, overflow: 'hidden', background: 'oklch(12% 0 0)', boxShadow: 'inset 0 0 0 1px oklch(100% 0 0 / 0.06)', cursor: 'pointer' }}>

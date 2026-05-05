@@ -448,18 +448,67 @@ export function VideoNode({ id, data }) {
           </div>
         </div>
 
-        {/* Task progress */}
-        {tasks.length > 0 && (
+        {/* Results */}
+        {tasks.some(t => t.status === 'done') && (
+          <div>
+            <div style={{ fontSize: 8, color: 'oklch(45% 0 0)', fontFamily: 'IBM Plex Mono, monospace', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
+              {tasks.filter(t => t.status === 'done').length} video{tasks.filter(t => t.status === 'done').length > 1 ? 's' : ''} generado{tasks.filter(t => t.status === 'done').length > 1 ? 's' : ''}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(1, 1fr)', gap: 6 }}>
+              {tasks.filter(t => t.status === 'done' && t.url).map((t) => (
+                <div
+                  key={t.taskId}
+                  style={{
+                    position: 'relative',
+                    aspectRatio: '16 / 9',
+                    borderRadius: 10,
+                    overflow: 'hidden',
+                    background: 'oklch(10% 0 0)',
+                    boxShadow: 'inset 0 0 0 1px oklch(55% 0.18 155 / 0.2), 0 4px 12px oklch(0% 0 0 / 0.3)',
+                    cursor: 'pointer',
+                    animation: 'fadeIn 300ms ease forwards',
+                    transition: 'all 200ms',
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.boxShadow = 'inset 0 0 0 1px oklch(55% 0.18 155 / 0.4), 0 8px 24px oklch(55% 0.18 155 / 0.2)';
+                    e.currentTarget.style.transform = 'scale(1.02)';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.boxShadow = 'inset 0 0 0 1px oklch(55% 0.18 155 / 0.2), 0 4px 12px oklch(0% 0 0 / 0.3)';
+                    e.currentTarget.style.transform = 'scale(1)';
+                  }}
+                  onClick={() => {
+                    const modal = document.createElement('div');
+                    modal.style.cssText = 'position:fixed;inset:0;background:oklch(5% 0 0 / 0.95);display:flex;align-items:center;justify-content:center;zIndex:9999;cursor:pointer;';
+                    const video = document.createElement('video');
+                    video.src = t.url;
+                    video.controls = true;
+                    video.autoplay = true;
+                    video.style.cssText = 'maxWidth:90vw;maxHeight:90vh;borderRadius:12px;';
+                    modal.appendChild(video);
+                    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+                    document.body.appendChild(modal);
+                  }}
+                >
+                  <video src={t.url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted />
+                  <div style={{ position: 'absolute', inset: 0, background: 'oklch(0% 0 0 / 0)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0, transition: 'opacity 200ms' }} onMouseEnter={e => { e.currentTarget.style.background = 'oklch(0% 0 0 / 0.3)'; e.currentTarget.style.opacity = 1; }} onMouseLeave={e => { e.currentTarget.style.opacity = 0; }}>
+                    <span style={{ fontSize: 28, color: 'oklch(90% 0 0)' }}>▶</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Task progress for pending/errors */}
+        {tasks.some(t => t.status !== 'done') && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {tasks.map((t, i) => (
+            {tasks.filter(t => t.status !== 'done').map((t) => (
               <div key={t.taskId} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 6px', borderRadius: 6, background: 'oklch(100% 0 0 / 0.03)', boxShadow: 'inset 0 0 0 1px oklch(100% 0 0 / 0.06)' }}>
-                <div style={{ width: 5, height: 5, borderRadius: 3, background: t.status === 'done' ? 'oklch(65% 0.18 155)' : t.status === 'error' ? 'oklch(62% 0.22 25)' : 'oklch(60% 0.18 155)', boxShadow: t.status === 'pending' ? '0 0 4px oklch(60% 0.18 155 / 0.6)' : 'none', flexShrink: 0, transition: 'background 300ms' }} />
-                <span style={{ fontSize: 7, color: 'oklch(50% 0 0)', fontFamily: 'IBM Plex Mono, monospace', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {t.status === 'done' ? '✓ Guardado' : t.status === 'error' ? '✕ Error' : `${t.taskId.slice(0, 12)}...`}
+                <div style={{ width: 5, height: 5, borderRadius: 3, background: t.status === 'error' ? 'oklch(62% 0.22 25)' : 'oklch(60% 0.18 155)', boxShadow: t.status === 'pending' ? '0 0 4px oklch(60% 0.18 155 / 0.6)' : 'none', flexShrink: 0, transition: 'background 300ms' }} />
+                <span style={{ fontSize: 7, color: 'oklch(50% 0 0)', fontFamily: 'IBM Plex Mono, monospace', flex: 1 }}>
+                  {t.status === 'error' ? '✕ Error' : `Procesando...`}
                 </span>
-                {t.url && (
-                  <a href={t.url} target="_blank" rel="noreferrer" style={{ fontSize: 7, color: 'oklch(60% 0.18 155)', textDecoration: 'none' }}>↗</a>
-                )}
               </div>
             ))}
           </div>

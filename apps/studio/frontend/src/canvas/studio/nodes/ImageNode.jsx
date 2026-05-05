@@ -339,18 +339,45 @@ export function ImageNode({ id, data }) {
             <div style={{ fontSize: 8, color: 'oklch(45% 0 0)', fontFamily: 'IBM Plex Mono', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
               {tasks.filter(t => t.status === 'done').length} imagen{tasks.filter(t => t.status === 'done').length > 1 ? 'es' : ''} generada{tasks.filter(t => t.status === 'done').length > 1 ? 's' : ''}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 5 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
               {tasks.filter(t => t.status === 'done' && t.url).map((t, i) => (
                 <div
                   key={t.taskId}
-                  onClick={() => window.open(t.url, '_blank')}
                   style={{
-                    aspectRatio: '1', borderRadius: 8, overflow: 'hidden', background: 'oklch(10% 0 0)',
-                    boxShadow: 'inset 0 0 0 1px oklch(65% 0.2 265 / 0.15)', cursor: 'pointer',
+                    position: 'relative',
+                    aspectRatio: '1',
+                    borderRadius: 10,
+                    overflow: 'hidden',
+                    background: 'oklch(10% 0 0)',
+                    boxShadow: 'inset 0 0 0 1px oklch(65% 0.2 265 / 0.2), 0 4px 12px oklch(0% 0 0 / 0.3)',
+                    cursor: 'pointer',
                     animation: 'fadeIn 300ms ease forwards',
+                    transition: 'all 200ms',
+                    group: 'hover',
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.boxShadow = 'inset 0 0 0 1px oklch(65% 0.2 265 / 0.4), 0 8px 24px oklch(65% 0.2 265 / 0.2)';
+                    e.currentTarget.style.transform = 'scale(1.02)';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.boxShadow = 'inset 0 0 0 1px oklch(65% 0.2 265 / 0.2), 0 4px 12px oklch(0% 0 0 / 0.3)';
+                    e.currentTarget.style.transform = 'scale(1)';
+                  }}
+                  onClick={() => {
+                    const modal = document.createElement('div');
+                    modal.style.cssText = 'position:fixed;inset:0;background:oklch(5% 0 0 / 0.95);display:flex;align-items:center;justify-content:center;zIndex:9999;cursor:pointer;';
+                    const img = document.createElement('img');
+                    img.src = t.url;
+                    img.style.cssText = 'maxWidth:90vw;maxHeight:90vh;borderRadius:12px;objectFit:contain;';
+                    modal.appendChild(img);
+                    modal.onclick = () => modal.remove();
+                    document.body.appendChild(modal);
                   }}
                 >
-                  <img src={t.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img src={t.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 300ms' }} />
+                  <div style={{ position: 'absolute', inset: 0, background: 'oklch(0% 0 0 / 0)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0, transition: 'opacity 200ms' }} onMouseEnter={e => { e.currentTarget.style.background = 'oklch(0% 0 0 / 0.3)'; e.currentTarget.style.opacity = 1; }} onMouseLeave={e => { e.currentTarget.style.opacity = 0; }}>
+                    <span style={{ fontSize: 20, color: 'oklch(90% 0 0)' }}>🔍</span>
+                  </div>
                 </div>
               ))}
             </div>

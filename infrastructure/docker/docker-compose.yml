@@ -23,8 +23,8 @@ services:
   studio:
     container_name: cliender-studio
     build:
-      context: .
-      dockerfile: Dockerfile.studio
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.studio
     environment:
       NODE_ENV: development
       PORT: 3005

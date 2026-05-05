@@ -22,7 +22,9 @@ pm2.log
 .DS_Store
 .AppleDouble
 .LSOverride
-.env.example
+
+# Keep .env.example in git (for reference)
+# But ignore actual .env files (above)
 
 # IDE
 .vscode/

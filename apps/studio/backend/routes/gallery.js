@@ -69,9 +69,16 @@ router.post('/', async (req, res) => {
   }
 });
 
-// DELETE /api/gallery/:id
+// DELETE /api/gallery/:id — validate owner
 router.delete('/:id', async (req, res) => {
+  if (!req.user?.userId) return res.status(401).json({ error: 'Authentication required' });
+
   try {
+    const { rows } = await query('SELECT user_id FROM gallery_items WHERE id = $1', [req.params.id]);
+    const item = rows[0];
+    if (!item) return res.status(404).json({ error: 'Not found' });
+    if (item.user_id !== req.user.userId) return res.status(403).json({ error: 'Not authorized' });
+
     await query('DELETE FROM gallery_items WHERE id = $1', [req.params.id]);
     res.json({ success: true });
   } catch (err) {

@@ -561,11 +561,19 @@ export function SpacesScreen({ onOpenCanvas, onOpenSpace, selectedClient, onSele
         )}
 
         {/* User */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 30, height: 30, borderRadius: 9, background: 'linear-gradient(135deg, oklch(55% 0.22 265), oklch(42% 0.24 280))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, color: 'white', userSelect: 'none' }} title={user?.name || 'Usuario'}>
             {(user?.name || 'U')[0].toUpperCase()}
           </div>
-          <button onClick={logout} style={{ background: 'none', border: 'none', color: 'oklch(40% 0 0)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', padding: '4px 8px', borderRadius: 6, transition: 'color 150ms' }} onMouseEnter={e => e.currentTarget.style.color = 'oklch(65% 0 0)'} onMouseLeave={e => e.currentTarget.style.color = 'oklch(40% 0 0)'}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'oklch(85% 0 0)' }}>
+              {user?.name || 'Usuario'}
+            </div>
+            <div style={{ fontSize: 9, color: 'oklch(45% 0 0)' }}>
+              {user?.email || ''}
+            </div>
+          </div>
+          <button onClick={logout} style={{ background: 'none', border: 'none', color: 'oklch(40% 0 0)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', padding: '4px 8px', borderRadius: 6, transition: 'color 150ms', marginLeft: 8 }} onMouseEnter={e => e.currentTarget.style.color = 'oklch(65% 0 0)'} onMouseLeave={e => e.currentTarget.style.color = 'oklch(40% 0 0)'}>
             Salir
           </button>
         </div>

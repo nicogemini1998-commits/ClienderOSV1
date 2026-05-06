@@ -1,0 +1,111 @@
+##############################################################
+#  ClienderOS V1 — Docker Compose (VPS - Producción)
+#
+#  VPS: 185.97.144.72
+#  Apps:
+#    Studio  → https://fullstackai.cliender.com (puerto interno 3006)
+#    LeadUp  → https://leadup.cliender.com     (puerto interno 8002)
+#
+#  Uso:
+#    docker compose --env-file ../.env up -d
+#    docker compose --env-file ../.env logs -f studio
+#    docker compose --env-file ../.env ps
+##############################################################
+
+services:
+
+  # ── PostgreSQL (compartida) ───────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: cliender-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-cliender}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cliender_secure_password_change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-cliender_db}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cliender}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cliender-network
+    restart: unless-stopped
+
+  # ┌─────────────────────────────────────────────────────────┐
+  # │  STUDIO (Node.js full-stack)                            │
+  # └─────────────────────────────────────────────────────────┘
+
+  studio:
+    container_name: cliender-studio
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.studio
+    environment:
+      NODE_ENV: production
+      PORT: 3005
+      FRONTEND_URL: https://fullstackai.cliender.com
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-cliender_db}
+      DB_USER: ${POSTGRES_USER:-cliender}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-cliender_secure_password_change_me}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      KIE_API_KEY: ${KIE_API_KEY}
+      JWT_SECRET: ${STUDIO_JWT_SECRET}
+    ports:
+      - "3006:3005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - cliender-network
+    restart: unless-stopped
+
+  # ┌─────────────────────────────────────────────────────────┐
+  # │  LEADUP (Python FastAPI full-stack)                     │
+  # └─────────────────────────────────────────────────────────┘
+
+  leadup:
+    container_name: leadup-backend
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.leadup
+    environment:
+      PYTHONUNBUFFERED: "1"
+      PORT: 8002
+      ENVIRONMENT: production
+      FRONTEND_URL: https://leadup.cliender.com
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      LUSHA_API_KEY: ${LUSHA_API_KEY}
+      APOLLO_API_KEY: ${APOLLO_API_KEY}
+      JWT_SECRET: ${LEADUP_JWT_SECRET}
+    ports:
+      - "8002:8002"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - cliender-network
+    restart: unless-stopped
+
+networks:
+  cliender-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local

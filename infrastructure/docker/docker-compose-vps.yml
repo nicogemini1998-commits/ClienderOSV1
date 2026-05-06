@@ -79,8 +79,8 @@ services:
   leadup:
     container_name: leadup-backend
     build:
-      context: ..
-      dockerfile: docker/Dockerfile.leadup
+      context: ../../leadup
+      dockerfile: ../fullstackai/docker/Dockerfile.leadup
     environment:
       PYTHONUNBUFFERED: "1"
       PORT: 8002

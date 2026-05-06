@@ -3,10 +3,10 @@ FROM node:20-alpine AS frontend-builder
 
 WORKDIR /app/frontend
 
-COPY apps/leadup/frontend/package*.json ./
+COPY frontend/package*.json ./
 RUN npm ci
 
-COPY apps/leadup/frontend/ ./
+COPY frontend/ ./
 RUN npm run build
 
 ## Stage 2: Python backend + frontend
@@ -20,11 +20,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy and install Python dependencies
-COPY apps/leadup/backend/requirements.txt ./
+COPY backend/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend source
-COPY apps/leadup/backend/ ./
+COPY backend/ ./
 
 # Copy built frontend
 COPY --from=frontend-builder /app/frontend/dist ./static

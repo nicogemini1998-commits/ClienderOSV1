@@ -1,0 +1,159 @@
+##############################################################
+#  ClienderOS V1 — Docker Compose (desarrollo local)
+#
+#  Apps:
+#    Studio   → backend: localhost:3005  |  frontend: localhost:5173
+#    LeadUp   → backend: localhost:8002  |  frontend: localhost:5174
+#
+#  Uso:
+#    cp .env.example .env          # solo la primera vez
+#    docker compose up             # levanta todo
+#    docker compose up studio-*    # solo Studio
+#    docker compose up leadup-*    # solo LeadUp
+#    docker compose down           # para todo
+##############################################################
+
+services:
+
+  # ── PostgreSQL (base de datos de Studio) ──────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: cliender-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-cliender}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cliender_dev_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-cliender}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cliender}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cliender-net
+    restart: unless-stopped
+
+  # ┌─────────────────────────────────────────────────────────┐
+  # │  STUDIO                                                 │
+  # └─────────────────────────────────────────────────────────┘
+
+  studio-backend:
+    build:
+      context: ./apps/studio/backend
+      dockerfile: Dockerfile
+      target: dev                      # hot-reload via node --watch
+    container_name: studio-backend
+    volumes:
+      - ./apps/studio/backend:/app     # código montado para hot-reload
+      - /app/node_modules              # node_modules dentro del contenedor
+    environment:
+      NODE_ENV: development
+      PORT: 3005
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-cliender}
+      DB_USER: ${POSTGRES_USER:-cliender}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-cliender_dev_pass}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      KIE_API_KEY: ${KIE_API_KEY:-}
+      JWT_SECRET: ${STUDIO_JWT_SECRET:-studio_jwt_dev_secret_2024}
+    ports:
+      - "3005:3005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3005/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - cliender-net
+    restart: unless-stopped
+
+  studio-frontend:
+    build:
+      context: ./apps/studio/frontend
+      dockerfile: Dockerfile
+      target: dev                      # vite dev server con HMR
+    container_name: studio-frontend
+    volumes:
+      - ./apps/studio/frontend:/app    # código montado para HMR
+      - /app/node_modules
+    environment:
+      VITE_API_URL: http://studio-backend:3005
+      VITE_PORT: 5173
+    ports:
+      - "5173:5173"
+    depends_on:
+      studio-backend:
+        condition: service_healthy
+    networks:
+      - cliender-net
+    restart: unless-stopped
+
+  # ┌─────────────────────────────────────────────────────────┐
+  # │  LEADUP                                                 │
+  # └─────────────────────────────────────────────────────────┘
+
+  leadup-backend:
+    build:
+      context: ./apps/leadup/backend
+      dockerfile: Dockerfile
+      target: dev                      # uvicorn --reload con hot-reload
+    container_name: leadup-backend
+    volumes:
+      - ./apps/leadup/backend:/app     # código montado para hot-reload
+    environment:
+      PYTHONUNBUFFERED: "1"
+      PORT: 8002
+      ENVIRONMENT: development
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      LUSHA_API_KEY: ${LUSHA_API_KEY:-}
+      JWT_SECRET: ${LEADUP_JWT_SECRET:-leadup_jwt_dev_secret_2024}
+      APOLLO_API_KEY: ${APOLLO_API_KEY:-}
+      FRONTEND_URL: http://localhost:5174
+    ports:
+      - "8002:8002"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - cliender-net
+    restart: unless-stopped
+
+  leadup-frontend:
+    build:
+      context: ./apps/leadup/frontend
+      dockerfile: Dockerfile
+      target: dev                      # vite dev server con HMR
+    container_name: leadup-frontend
+    volumes:
+      - ./apps/leadup/frontend:/app    # código montado para HMR
+      - /app/node_modules
+    environment:
+      VITE_API_URL: http://leadup-backend:8002
+      VITE_PORT: 5174
+    ports:
+      - "5174:5174"
+    depends_on:
+      leadup-backend:
+        condition: service_healthy
+    networks:
+      - cliender-net
+    restart: unless-stopped
+
+networks:
+  cliender-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local

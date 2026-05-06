@@ -5,7 +5,7 @@ from functools import lru_cache
 
 
 class Settings(BaseSettings):
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="ignore", env_file=".env", env_file_encoding="utf-8")
 
     # JWT
     jwt_secret: str = "leadup_secret_jwt_2024_cambia_esto"
@@ -32,10 +32,6 @@ class Settings(BaseSettings):
     gmaps_enabled: bool = True
     gmaps_results_per_search: int = 20
     gmaps_rate_limit_ms: int = 2500
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
 
 
 @lru_cache()

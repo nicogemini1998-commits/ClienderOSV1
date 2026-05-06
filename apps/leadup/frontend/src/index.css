@@ -154,10 +154,14 @@ body {
   }
 
   .btn-primary {
-    @apply bg-accent hover:bg-accent-dark font-semibold px-4 py-2 rounded-lg
+    @apply bg-accent font-semibold px-4 py-2 rounded-lg
            transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-accent
            disabled:opacity-50 disabled:cursor-not-allowed;
     color: white;
+  }
+
+  .btn-primary:hover {
+    background-color: rgb(var(--color-accent-dark));
   }
 
   .btn-ghost {

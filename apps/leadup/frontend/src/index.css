@@ -154,9 +154,7 @@ body {
   }
 
   .btn-primary {
-    @apply bg-accent font-semibold px-4 py-2 rounded-lg
-           transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-accent
-           disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply bg-accent font-semibold px-4 py-2 rounded-lg transition-colors duration-150;
     color: white;
   }
 
@@ -164,11 +162,23 @@ body {
     background-color: rgb(var(--color-accent-dark));
   }
 
+  .btn-primary:focus-visible {
+    outline: none;
+    ring: 2px rgb(var(--color-accent));
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
   .btn-ghost {
-    @apply hover:bg-surface-hover px-3 py-2 rounded-lg transition-colors duration-150;
+    @apply px-3 py-2 rounded-lg transition-colors duration-150;
     color: var(--text-muted);
   }
+
   .btn-ghost:hover {
+    background-color: rgb(var(--color-surface-hover));
     color: var(--text-primary);
   }
 
@@ -177,11 +187,15 @@ body {
   }
 
   .input-dark {
-    @apply bg-surface-raised border border-surface-border rounded-lg px-3 py-2
-           focus:outline-none focus:border-accent
-           transition-colors duration-150 w-full;
+    @apply bg-surface-raised border border-surface-border rounded-lg px-3 py-2 transition-colors duration-150 w-full;
     color: var(--text-primary);
   }
+
+  .input-dark:focus {
+    outline: none;
+    border-color: rgb(var(--color-accent));
+  }
+
   .input-dark::placeholder {
     color: var(--text-faint);
   }

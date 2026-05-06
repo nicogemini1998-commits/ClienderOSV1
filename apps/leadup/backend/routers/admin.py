@@ -391,3 +391,105 @@ async def scrape_now(
 
     background_tasks.add_task(_scrape_task)
     return {"message": "Scraping iniciado en segundo plano"}
+
+
+@router.post("/seed-leads")
+async def seed_leads(
+    current_user: dict = Depends(require_admin),
+):
+    """Load 24 demo leads (12 constructoras + 12 abogados) for today."""
+    import json as _json
+
+    constructoras = [
+        ("Construcciones Aranda S.L.", "Madrid", "Construcción", "www.construccionesaranda.es", "+34 915 234 567", 25, "alta"),
+        ("Reformas Blanca & Cia", "Barcelona", "Reformas Integrales", "www.reformasblanca.com", "+34 932 456 789", 18, "alta"),
+        ("Constructor Díaz Valencia", "Valencia", "Obras Civiles", "constructordiaz.es", "+34 963 567 890", 32, "media"),
+        ("Obras Mayores Sevilla", "Sevilla", "Construcción de Viviendas", "www.obrmayor.es", "+34 954 678 901", 21, "alta"),
+        ("Constructora Gómez & Partners", "Bilbao", "Construcción Comercial", "gomezbuilders.es", "+34 944 789 012", 28, "media"),
+        ("Reformas García Hermanos", "Málaga", "Reformas y Rehabilitación", "www.reformasgarcia.com", "+34 952 890 123", 15, "alta"),
+        ("Obras Públicas Castro", "Zaragoza", "Obras de Infraestructura", "www.obrascastro.es", "+34 976 901 234", 26, "media"),
+        ("Constructora Jiménez Toledo", "Toledo", "Edificación", "jimenezconstructora.es", "+34 925 012 345", 19, "alta"),
+        ("Reformas Inteligentes Alicante", "Alicante", "Reformas Domésticas", "www.reformasinteligentes.es", "+34 965 123 456", 22, "media"),
+        ("Constructor Mora Granada", "Granada", "Construcción Residencial", "moraconstructor.com", "+34 958 234 567", 17, "alta"),
+        ("Obras Urbanas Murcia", "Murcia", "Urbanización", "www.obrasurbanas.es", "+34 968 345 678", 24, "media"),
+        ("Constructora Sánchez Santander", "Santander", "Construcción General", "sanchez-construcciones.es", "+34 942 456 789", 20, "alta"),
+    ]
+
+    abogados = [
+        ("Bufete Jurídico García López", "Madrid", "Derecho Mercantil", "www.garcialopezabogados.es", "+34 913 456 789", 35, "media"),
+        ("Abogados Martínez & Asociados", "Barcelona", "Derecho Penal", "www.martinez-abogados.cat", "+34 932 567 890", 28, "alta"),
+        ("Despacho Fernández Valencia", "Valencia", "Derecho Laboral", "fernandezabogados.es", "+34 963 678 901", 31, "media"),
+        ("Bufete Sánchez Sevilla", "Sevilla", "Derecho Civil", "www.bufetesanchez.es", "+34 954 789 012", 22, "alta"),
+        ("Abogados Ramírez & Cia", "Bilbao", "Derecho Mercantil", "ramirezabogados.es", "+34 944 890 123", 33, "media"),
+        ("Despacho Jurídico López Málaga", "Málaga", "Derecho Inmobiliario", "www.lopezabogados.com", "+34 952 901 234", 25, "alta"),
+        ("Bufete Colón Zaragoza", "Zaragoza", "Derecho Administrativo", "www.bufetecolon.es", "+34 976 012 345", 29, "media"),
+        ("Abogados Ruiz Toledo", "Toledo", "Derecho de Familia", "ruizabogados.es", "+34 925 123 456", 24, "alta"),
+        ("Despacho Gómez Alicante", "Alicante", "Derecho Mercantil", "www.gomezabogados.es", "+34 965 234 567", 32, "media"),
+        ("Bufete Granada Legal", "Granada", "Derecho Penal", "www.granadalegal.com", "+34 958 345 678", 26, "alta"),
+        ("Abogados Morales Murcia", "Murcia", "Derecho Civil", "moralesabogados.es", "+34 968 456 789", 30, "media"),
+        ("Despacho Jiménez Santander", "Santander", "Derecho Laboral", "www.jimenezabogados.es", "+34 942 567 890", 27, "alta"),
+    ]
+
+    all_clients = constructoras + abogados
+    today = str(date.today())
+    user_list = [2, 4, 5]  # Toni, Ruben, Ethan
+    loaded = 0
+
+    async with get_conn() as conn:
+        await conn.execute("DELETE FROM lu_daily_assignments WHERE assigned_date = ?", (today,))
+        await conn.commit()
+
+        for i, (name, city, industry, website, phone, score, opp) in enumerate(all_clients):
+            hooks = _json.dumps([
+                f"Sector {industry} en {city}",
+                f"Score digital {score}/100",
+                f"Oportunidad {opp}"
+            ])
+            opening = _json.dumps([
+                f"Hola {name}, soy Nicolás de HBD",
+                f"Buenos días, le llamo porque hemos analizado {name}",
+                f"{name}, ¿tiene 3 minutos?"
+            ])
+
+            cursor = await conn.execute(
+                """INSERT OR IGNORE INTO lu_companies
+                (name, website, city, industry, phone, digital_score, opportunity_level, hooks, opening_lines)
+                VALUES (?,?,?,?,?,?,?,?,?)""",
+                (name, website, city, industry, phone, score, opp, hooks, opening)
+            )
+            await conn.commit()
+
+            cursor = await conn.execute("SELECT id FROM lu_companies WHERE name = ?", (name,))
+            row = await cursor.fetchone()
+            company_id = row["id"]
+
+            contact_names = ["Carlos Ruiz", "María Fernández", "Juan García", "Patricia López", "Roberto Sánchez", "Elena Torres"]
+            contact = contact_names[i % len(contact_names)]
+
+            await conn.execute("DELETE FROM lu_contacts WHERE company_id = ?", (company_id,))
+            await conn.execute(
+                """INSERT INTO lu_contacts (company_id, name, title, email, phone_prefix, lusha_person_id, phone_revealed)
+                VALUES (?,?,?,?,?,?,?)""",
+                (company_id, contact, "Director", f"{contact.lower().replace(' ', '.')}@{name.lower().replace(' ', '')}.es", str(630 + i % 10), f"mock_{i:03d}", 0)
+            )
+            await conn.commit()
+
+            user_id = user_list[i % len(user_list)]
+            await conn.execute(
+                """INSERT OR IGNORE INTO lu_daily_assignments (company_id, user_id, assigned_date, status)
+                VALUES (?,?,?,?)""",
+                (company_id, user_id, today, "pending")
+            )
+            await conn.commit()
+            loaded += 1
+
+    return {
+        "message": f"✅ {loaded} leads cargados",
+        "date": today,
+        "distribution": {
+            "Toni": 8,
+            "Ruben": 8,
+            "Ethan": 8,
+        },
+        "sectors": ["12 Constructoras", "12 Abogados"]
+    }

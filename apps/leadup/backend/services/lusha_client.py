@@ -2,6 +2,7 @@ from __future__ import annotations
 """
 Lusha contact reveal — phone/email por crédito.
 Cache permanente en DB: una vez revelado, nunca se vuelve a cobrar.
+Usa v1/person endpoint para búsqueda inicial de contactos.
 """
 
 import logging
@@ -14,7 +15,7 @@ from config import get_settings
 
 logger = logging.getLogger(__name__)
 
-LUSHA_REVEAL_URL = "https://api.lusha.com/v2/person"
+LUSHA_V1_PERSON_URL = "https://api.lusha.com/v1/person"
 _TIMEOUT = 15.0
 _MAX_RETRIES = 3
 
@@ -33,7 +34,9 @@ async def reveal_contact(
     company_name: str | None,
 ) -> dict[str, Any]:
     """
-    Reveal phone/email for a contact via Lusha API v2.
+    Reveal phone/email for a contact via Lusha API v1.
+    Uses firstName/lastName/company lookup.
+    Cache permanente en DB: una vez revelado, nunca se vuelve a cobrar.
 
     Returns:
         {
@@ -45,8 +48,6 @@ async def reveal_contact(
 
     Raises:
         ValueError if LUSHA_API_KEY is not configured.
-        httpx.HTTPStatusError for non-retryable HTTP errors.
-        RuntimeError if all retries exhausted on timeout.
     """
     from database import get_conn  # local import avoids circular dep at module level
 
@@ -78,28 +79,42 @@ async def reveal_contact(
             "revealed_at": row["revealed_at"],
         }
 
-    # ── 2. Build Lusha payload ────────────────────────────────────────────────
-    payload: dict[str, Any] = {}
+    # ── 2. Parse full_name into firstName and lastName ───────────────────────
+    if not full_name and not linkedin_url:
+        raise ValueError("Se necesita full_name o linkedin_url para revelar contacto")
+
+    first_name = ""
+    last_name = ""
+    if full_name:
+        parts = full_name.strip().split(None, 1)  # Split on first whitespace
+        first_name = parts[0]
+        last_name = parts[1] if len(parts) > 1 else ""
+
+    # ── 3. Build query params for v1/person ────────────────────────────────────
+    params: dict[str, str] = {}
     if linkedin_url:
-        payload["linkedinUrl"] = linkedin_url
-    elif full_name:
-        payload["fullName"] = full_name
+        params["linkedinUrl"] = linkedin_url
+    else:
+        if first_name:
+            params["firstName"] = first_name
+        if last_name:
+            params["lastName"] = last_name
         if company_name:
-            payload["companyName"] = company_name
+            params["company"] = company_name
 
-    if not payload:
-        raise ValueError("Se necesita linkedin_url o full_name para revelar contacto")
+    if not params:
+        raise ValueError("Se necesita firstName o linkedinUrl para revelar contacto")
 
-    log.info("contact_id=%s lusha_reveal=start payload_keys=%s", contact_id, list(payload.keys()))
+    log.info("contact_id=%s lusha_reveal=start params=%s", contact_id, list(params.keys()))
 
-    # ── 3. Call Lusha with retry on timeout ──────────────────────────────────
+    # ── 4. Call Lusha v1/person API ────────────────────────────────────────────
     last_exc: Exception | None = None
     data: dict[str, Any] = {}
 
     for attempt in range(1, _MAX_RETRIES + 1):
         try:
             async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-                resp = await client.post(LUSHA_REVEAL_URL, json=payload, headers=_headers())
+                resp = await client.get(LUSHA_V1_PERSON_URL, params=params, headers=_headers())
 
             if resp.status_code == 404:
                 log.warning("contact_id=%s lusha=404 contact_not_found", contact_id)
@@ -110,9 +125,13 @@ async def reveal_contact(
                 from fastapi import HTTPException
                 raise HTTPException(status_code=402, detail="Sin créditos Lusha disponibles")
 
-            resp.raise_for_status()
+            if resp.status_code >= 400:
+                body = resp.text[:500]
+                log.error("contact_id=%s lusha_error status=%s body=%s", contact_id, resp.status_code, body)
+                resp.raise_for_status()
+
             data = resp.json()
-            log.info("contact_id=%s lusha=ok attempt=%s", contact_id, attempt)
+            log.info("contact_id=%s lusha=ok attempt=%s data_keys=%s", contact_id, attempt, list(data.keys()))
             break
 
         except httpx.TimeoutException as exc:
@@ -122,20 +141,19 @@ async def reveal_contact(
                 raise RuntimeError(
                     f"Lusha timeout tras {_MAX_RETRIES} intentos para contact_id={contact_id}"
                 ) from exc
+        except httpx.HTTPStatusError:
+            if attempt == _MAX_RETRIES:
+                raise
 
-    # ── 4. Parse response ────────────────────────────────────────────────────
+    # ── 5. Parse response (Lusha v1 returns person object directly) ────────────
     phone: str | None = None
     email: str | None = None
 
-    phones = data.get("phones") or []
-    if phones:
-        phone = phones[0].get("normalizedPhone") or phones[0].get("phone")
+    # v1/person response: { phone: "...", email: "...", ... }
+    phone = data.get("phone")
+    email = data.get("email")
 
-    emails = data.get("emails") or []
-    if emails:
-        email = emails[0].get("email")
-
-    # ── 5. Persist to DB (cache permanently) ─────────────────────────────────
+    # ── 6. Persist to DB (cache permanently) ────────────────────────────────
     async with get_conn() as conn:
         await conn.execute(
             """

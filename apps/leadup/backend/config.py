@@ -1,9 +1,12 @@
 from __future__ import annotations
 from pydantic_settings import BaseSettings
+from pydantic import ConfigDict
 from functools import lru_cache
 
 
 class Settings(BaseSettings):
+    model_config = ConfigDict(extra="ignore")
+
     # JWT
     jwt_secret: str = "leadup_secret_jwt_2024_cambia_esto"
     jwt_expiry_hours: int = 8

@@ -15,7 +15,7 @@ from slowapi.errors import RateLimitExceeded
 from config import get_settings
 from database import init_db
 from services.scheduler import get_scheduler
-from routers import auth, leads, admin, notes, contacts, companies
+from routers import auth, leads, admin, notes, contacts
 from init_db import initialize_db
 
 logging.basicConfig(
@@ -76,7 +76,6 @@ app.include_router(leads.router)
 app.include_router(admin.router)
 app.include_router(notes.router)
 app.include_router(contacts.router)
-app.include_router(companies.router)
 
 
 @app.get("/health", tags=["health"])

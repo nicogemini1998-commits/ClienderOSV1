@@ -98,14 +98,21 @@ async def init_db() -> None:
             ON lu_contacts(company_id)
         """)
 
-        # Migration: add follow_up_date if not present
-        try:
-            await conn.execute(
-                "ALTER TABLE lu_daily_assignments ADD COLUMN follow_up_date TEXT"
-            )
-            await conn.commit()
-        except Exception:
-            pass  # Column already exists
+        # Migrations — safe to run every startup (ALTER TABLE ignores existing columns)
+        migrations = [
+            "ALTER TABLE lu_daily_assignments ADD COLUMN follow_up_date TEXT",
+            "ALTER TABLE lu_contacts ADD COLUMN lusha_person_id TEXT",
+            "ALTER TABLE lu_contacts ADD COLUMN phone_revealed INTEGER DEFAULT 0",
+            "ALTER TABLE lu_contacts ADD COLUMN phone_prefix TEXT",
+            "ALTER TABLE lu_companies ADD COLUMN sales_report TEXT",
+            "ALTER TABLE lu_companies ADD COLUMN report_generated_at TEXT",
+        ]
+        for sql in migrations:
+            try:
+                await conn.execute(sql)
+                await conn.commit()
+            except Exception:
+                pass  # Column already exists
 
         await conn.commit()
 

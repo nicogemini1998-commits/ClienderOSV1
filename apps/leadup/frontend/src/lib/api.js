@@ -48,6 +48,12 @@ export const leadsApi = {
     api.patch(`/leads/${assignmentId}/status`, { status, notes }),
   updateFollowup: (assignmentId, followUpDate) =>
     api.patch(`/leads/${assignmentId}/followup`, { follow_up_date: followUpDate }),
+  revealPhone: (assignmentId) =>
+    api.post(`/leads/${assignmentId}/reveal-phone`),
+  generateReport: (assignmentId) =>
+    api.post(`/leads/${assignmentId}/generate-report`),
+  clearReportCache: (assignmentId) =>
+    api.delete(`/leads/${assignmentId}/report-cache`),
 }
 
 // Notes
@@ -69,4 +75,5 @@ export const adminApi = {
   toggleLeadSearch: (userId, enabled) =>
     api.patch('/admin/lead-search-toggle', { user_id: userId, enabled }),
   triggerEnrichment: () => api.post('/admin/trigger-enrichment'),
+  lushaLoad: () => api.post('/admin/lusha-load'),
 }

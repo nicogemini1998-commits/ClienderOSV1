@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     apollo_api_key: str = ""
     anthropic_api_key: str = ""
     apify_api_key: str = ""
+    lusha_api_key: str = ""
 
     # Server
     port: int = 8002

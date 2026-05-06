@@ -1,29 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
 import { adminApi } from '../lib/api'
 import { useAuth } from '../hooks/useAuth'
+import NavBar from '../components/NavBar'
 
-function NavBar({ user, onLogout }) {
-  return (
-    <header className="sticky top-0 z-40 bg-surface/90 backdrop-blur-md border-b border-surface-border">
-      <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <img src="/logo.jpg" alt="Cliender" className="w-7 h-7 rounded-lg object-cover" />
-          <span className="font-bold text-white text-sm">LeadUp</span>
-        </div>
-        <nav className="flex items-center gap-1">
-          <Link to="/" className="btn-ghost text-sm">Dashboard</Link>
-          <Link to="/analytics" className="btn-ghost text-sm">Analytics</Link>
-          <Link to="/ajustes" className="btn-ghost text-sm text-white">Ajustes</Link>
-        </nav>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-slate-400 hidden sm:block">{user?.name}</span>
-          <button onClick={onLogout} className="btn-ghost text-sm text-slate-400">Salir</button>
-        </div>
-      </div>
-    </header>
-  )
-}
 
 function Toggle({ enabled, onChange, loading }) {
   return (
@@ -53,6 +32,8 @@ export default function Ajustes() {
   const [toggling, setToggling] = useState({})
   const [enrichmentLoading, setEnrichmentLoading] = useState(false)
   const [enrichmentResult, setEnrichmentResult] = useState(null)
+  const [lushaLoading, setLushaLoading] = useState(false)
+  const [lushaResult, setLushaResult] = useState(null)
   const [error, setError] = useState(null)
 
   const loadData = async () => {
@@ -108,9 +89,23 @@ export default function Ajustes() {
     }
   }
 
+  const handleLushaLoad = async () => {
+    setLushaLoading(true)
+    setLushaResult(null)
+    try {
+      await adminApi.lushaLoad()
+      setLushaResult({ type: 'success', message: '25 leads cargando en segundo plano → Toni, Ruben, Ethan' })
+    } catch (err) {
+      const detail = err.response?.data?.detail || 'Error al conectar con Lusha'
+      setLushaResult({ type: 'error', message: detail })
+    } finally {
+      setLushaLoading(false)
+    }
+  }
+
   return (
     <>
-      <NavBar user={user} onLogout={logout} />
+      <NavBar />
 
       <main className="max-w-5xl mx-auto px-4 py-6">
         <div className="mb-6">
@@ -177,7 +172,7 @@ export default function Ajustes() {
               <h2 className="font-semibold text-white mb-4">Acciones del sistema</h2>
               <div className="space-y-3">
                 {/* Assign leads now */}
-                <div className="flex items-center justify-between p-4 bg-surface-raised border border-surface-border rounded-xl">
+                <div className="flex items-center justify-between flex-wrap gap-3 p-4 bg-surface-raised border border-surface-border rounded-xl">
                   <div>
                     <p className="text-sm font-medium text-white">Asignar leads ahora</p>
                     <p className="text-xs text-slate-400 mt-0.5">Ejecuta la asignación diaria para todos los usuarios activos</p>
@@ -190,8 +185,33 @@ export default function Ajustes() {
                   </button>
                 </div>
 
+                {/* Lusha load */}
+                <div className="flex items-center justify-between flex-wrap gap-3 p-4 bg-surface-raised border border-surface-border rounded-xl">
+                  <div>
+                    <p className="text-sm font-medium text-white">Cargar 25 leads desde Lusha</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Busca contactos de construcción/reformas en España y los asigna a Toni, Ruben, Ethan</p>
+                  </div>
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    {lushaResult && (
+                      <span className={`text-xs ${lushaResult.type === 'success' ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {lushaResult.message}
+                      </span>
+                    )}
+                    <button
+                      onClick={handleLushaLoad}
+                      disabled={lushaLoading}
+                      className="btn-primary text-sm flex items-center gap-2"
+                    >
+                      {lushaLoading ? (
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : null}
+                      {lushaLoading ? 'Cargando…' : 'Cargar leads Lusha'}
+                    </button>
+                  </div>
+                </div>
+
                 {/* Trigger enrichment */}
-                <div className="flex items-center justify-between p-4 bg-surface-raised border border-surface-border rounded-xl">
+                <div className="flex items-center justify-between flex-wrap gap-3 p-4 bg-surface-raised border border-surface-border rounded-xl">
                   <div>
                     <p className="text-sm font-medium text-white">Enriquecer leads pendientes</p>
                     <p className="text-xs text-slate-400 mt-0.5">Procesa empresas sin enriquecimiento con Claude Haiku (máx. 50)</p>

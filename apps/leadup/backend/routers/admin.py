@@ -46,12 +46,7 @@ async def assign_now(
         )
         return {"message": f"Asignación iniciada para {user['name']}", "user_id": body.user_id}
 
-    import asyncio
-
-    def run_assignment():
-        asyncio.run(trigger_manual_assignment())
-
-    background_tasks.add_task(run_assignment)
+    background_tasks.add_task(trigger_manual_assignment)
     return {"message": "Asignación masiva iniciada para todos los usuarios activos"}
 
 
@@ -249,13 +244,140 @@ async def trigger_enrichment(
     return {"message": "Enriquecimiento iniciado en segundo plano"}
 
 
+@router.post("/lusha-load")
+async def lusha_load(
+    background_tasks: BackgroundTasks,
+    current_user: dict = Depends(require_admin),
+):
+    """
+    Fetch 25 leads from Lusha (construction/reform sector, Spain) and
+    assign them equally among Toni (2), Ruben (4), Ethan (5).
+    """
+    from services.lusha_leads import search_construction_leads
+    from services.enrichment import enrich_company
+
+    async def _load_task():
+        import json as _json
+
+        logger.info("Lusha load: starting 25-lead fetch")
+        try:
+            contacts = await search_construction_leads(count=25)
+        except Exception as e:
+            logger.error(f"Lusha search failed: {e}")
+            return
+
+        # Assign user IDs in round-robin: Toni=2, Ruben=4, Ethan=5
+        target_users = [2, 4, 5]
+        today = date.today()
+        loaded = 0
+
+        for i, c in enumerate(contacts):
+            user_id = target_users[i % len(target_users)]
+            try:
+                # Create or find company
+                async with get_conn() as conn:
+                    # Dedup by name
+                    cursor = await conn.execute(
+                        "SELECT id FROM lu_companies WHERE name = ?",
+                        (c["company_name"],),
+                    )
+                    existing = await cursor.fetchone()
+
+                    if existing:
+                        company_id = existing["id"]
+                    else:
+                        # Enrich with Claude
+                        enrichment = await enrich_company({
+                            "name": c["company_name"],
+                            "city": c["company_city"],
+                            "industry": c["company_industry"],
+                            "website": c["company_website"],
+                            "phone": "",
+                        })
+
+                        cursor = await conn.execute(
+                            """
+                            INSERT INTO lu_companies
+                              (name, website, city, industry, digital_score, opportunity_level,
+                               redes_sociales, captacion_leads, email_marketing,
+                               video_contenido, seo_info, hooks, opening_lines, opportunity_analysis)
+                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                            """,
+                            (
+                                c["company_name"],
+                                c["company_website"],
+                                c["company_city"],
+                                c["company_industry"],
+                                enrichment.get("digital_score", 30),
+                                enrichment.get("opportunity_level", "media"),
+                                1 if enrichment.get("redes_sociales") else 0,
+                                1 if enrichment.get("captacion_leads") else 0,
+                                1 if enrichment.get("email_marketing") else 0,
+                                1 if enrichment.get("video_contenido") else 0,
+                                1 if enrichment.get("seo_info") else 0,
+                                _json.dumps(enrichment.get("hooks", [])),
+                                _json.dumps(enrichment.get("opening_lines", [])),
+                                enrichment.get("opportunity_analysis", ""),
+                            ),
+                        )
+                        company_id = cursor.lastrowid
+                        await conn.commit()
+
+                        # Create contact (phone masked, not revealed)
+                        if c.get("contact_name"):
+                            await conn.execute(
+                                """
+                                INSERT INTO lu_contacts
+                                  (company_id, name, title, email,
+                                   lusha_person_id, phone_revealed, phone_prefix)
+                                VALUES (?,?,?,?,?,0,?)
+                                """,
+                                (
+                                    company_id,
+                                    c["contact_name"],
+                                    c.get("contact_title", ""),
+                                    c.get("contact_email", ""),
+                                    c.get("lusha_person_id", ""),
+                                    c.get("phone_prefix", ""),
+                                ),
+                            )
+                            await conn.commit()
+
+                # Assign to user (ignore duplicate constraint)
+                async with get_conn() as conn:
+                    try:
+                        await conn.execute(
+                            """
+                            INSERT OR IGNORE INTO lu_daily_assignments
+                              (company_id, user_id, assigned_date, status)
+                            VALUES (?,?,?,?)
+                            """,
+                            (company_id, user_id, str(today), "pending"),
+                        )
+                        await conn.commit()
+                        loaded += 1
+                    except Exception as ex:
+                        logger.warning(f"Duplicate assignment skipped: {ex}")
+
+            except Exception as ex:
+                logger.error(f"Error processing Lusha contact {i}: {ex}")
+                continue
+
+        logger.info(f"Lusha load complete: {loaded} leads assigned")
+
+    background_tasks.add_task(_load_task)
+    return {
+        "message": "Carga Lusha iniciada en segundo plano. 25 leads → Toni, Ruben, Ethan.",
+        "users": ["Toni (2)", "Ruben (4)", "Ethan (5)"],
+    }
+
+
 @router.post("/scrape-now", tags=["admin"])
 async def scrape_now(
     background_tasks: BackgroundTasks,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_admin),
 ):
     """Trigger Google Maps scraping immediately (admin only)."""
-    require_admin(current_user)
 
     from services.google_maps_leads import scrape_and_enrich_leads
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
 import { adminApi } from '../lib/api'
 import { useAuth } from '../hooks/useAuth'
+import NavBar from '../components/NavBar'
 
 function StatCard({ label, value, sub, color = 'text-white' }) {
   return (
@@ -13,27 +13,6 @@ function StatCard({ label, value, sub, color = 'text-white' }) {
   )
 }
 
-function NavBar({ user, onLogout, isAdmin }) {
-  return (
-    <header className="sticky top-0 z-40 bg-surface/90 backdrop-blur-md border-b border-surface-border">
-      <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <img src="/logo.jpg" alt="Cliender" className="w-7 h-7 rounded-lg object-cover" />
-          <span className="font-bold text-white text-sm">LeadUp</span>
-        </div>
-        <nav className="flex items-center gap-1">
-          <Link to="/" className="btn-ghost text-sm">Dashboard</Link>
-          <Link to="/analytics" className="btn-ghost text-sm text-white">Analytics</Link>
-          <Link to="/ajustes" className="btn-ghost text-sm">Ajustes</Link>
-        </nav>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-slate-400 hidden sm:block">{user?.name}</span>
-          <button onClick={onLogout} className="btn-ghost text-sm text-slate-400">Salir</button>
-        </div>
-      </div>
-    </header>
-  )
-}
 
 function AssignNowButton() {
   const [loading, setLoading] = useState(false)
@@ -113,10 +92,10 @@ export default function Analytics() {
 
   return (
     <>
-      <NavBar user={user} onLogout={logout} isAdmin />
+      <NavBar />
 
       <main className="max-w-5xl mx-auto px-4 py-6">
-        <div className="flex items-start justify-between gap-4 mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold text-white">Analytics</h1>
             {data && (

@@ -1,0 +1,33 @@
+services:
+
+  # ── API FastAPI ─────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: leadup-backend
+    volumes:
+      - ./backend:/app          # hot-reload: cambios en código reflejados al instante
+    env_file:
+      - ./backend/.env
+    ports:
+      - "8002:8002"             # acceso directo a la API en local
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # ── Frontend React (nginx) ──────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: leadup-frontend
+    ports:
+      - "5174:80"               # app en http://localhost:5174
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped

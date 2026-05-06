@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link } from 'react-router-dom'
 import { leadsApi } from '../lib/api'
 import { useAuth } from '../hooks/useAuth'
+import NavBar from '../components/NavBar'
 import CompanyCard from '../components/CompanyCard'
 import CompanyModal from '../components/CompanyModal'
 
@@ -13,40 +13,6 @@ const STATUS_TABS = [
   { id: 'rejected', label: 'Rechazado' },
 ]
 
-function NavBar({ user, onLogout, isAdmin }) {
-  return (
-    <header className="sticky top-0 z-40 bg-surface/90 backdrop-blur-md border-b border-surface-border">
-      <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <img src="/logo.jpg" alt="Cliender" className="w-7 h-7 rounded-lg object-cover" />
-          <span className="font-bold text-white text-sm">LeadUp</span>
-        </div>
-
-        <nav className="flex items-center gap-1">
-          <Link to="/" className="btn-ghost text-sm text-white font-semibold">Dashboard</Link>
-          <Link to="/pipeline" className="btn-ghost text-sm">Pipeline</Link>
-          <Link to="/scripts" className="btn-ghost text-sm">Scripts</Link>
-          {isAdmin && (
-            <>
-              <Link to="/analytics" className="btn-ghost text-sm">Analytics</Link>
-              <Link to="/ajustes" className="btn-ghost text-sm">Ajustes</Link>
-            </>
-          )}
-        </nav>
-
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-slate-400 hidden sm:block">{user?.name}</span>
-          <button
-            onClick={onLogout}
-            className="btn-ghost text-sm text-slate-400"
-          >
-            Salir
-          </button>
-        </div>
-      </div>
-    </header>
-  )
-}
 
 export default function Dashboard() {
   const { user, isAdmin, logout } = useAuth()
@@ -97,6 +63,21 @@ export default function Dashboard() {
     )
   }
 
+  const handlePhoneRevealed = (assignmentId, phone) => {
+    setLeads((prev) =>
+      prev.map((l) =>
+        l.assignment_id === assignmentId
+          ? { ...l, contact: l.contact ? { ...l.contact, phone, phone_revealed: true } : l.contact }
+          : l
+      )
+    )
+    setSelectedLead((prev) =>
+      prev?.assignment_id === assignmentId && prev.contact
+        ? { ...prev, contact: { ...prev.contact, phone, phone_revealed: true } }
+        : prev
+    )
+  }
+
   const filteredLeads = activeTab === 'all'
     ? leads
     : leads.filter((l) => l.status === activeTab)
@@ -111,7 +92,7 @@ export default function Dashboard() {
 
   return (
     <>
-      <NavBar user={user} onLogout={logout} isAdmin={isAdmin} />
+      <NavBar />
 
       <main className="max-w-5xl mx-auto px-4 py-6">
         {/* Page header */}
@@ -202,6 +183,7 @@ export default function Dashboard() {
                 lead={lead}
                 onClick={setSelectedLead}
                 onStatusChange={handleStatusChange}
+                onPhoneRevealed={handlePhoneRevealed}
               />
             ))}
           </div>

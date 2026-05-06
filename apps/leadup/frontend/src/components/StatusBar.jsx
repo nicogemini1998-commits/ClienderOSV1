@@ -2,10 +2,11 @@ import { useState } from 'react'
 import { leadsApi } from '../lib/api'
 
 const STATUS_OPTIONS = [
-  { value: 'pending', label: 'Pendiente', color: 'text-amber-400 bg-amber-400/10 border-amber-400/20 hover:bg-amber-400/20' },
-  { value: 'no_answer', label: 'Sin respuesta', color: 'text-slate-400 bg-slate-400/10 border-slate-400/20 hover:bg-slate-400/20' },
-  { value: 'closed', label: 'Cerrado', color: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20 hover:bg-emerald-400/20' },
-  { value: 'rejected', label: 'Rechazado', color: 'text-red-400 bg-red-400/10 border-red-400/20 hover:bg-red-400/20' },
+  { value: 'pending',    label: 'Pendiente',     color: 'text-amber-400  bg-amber-400/10  border-amber-400/20  hover:bg-amber-400/20'  },
+  { value: 'no_answer',  label: 'Sin respuesta', color: 'text-slate-400  bg-slate-400/10  border-slate-400/20  hover:bg-slate-400/20'  },
+  { value: 'call_later', label: 'Llamar luego',  color: 'text-blue-400   bg-blue-400/10   border-blue-400/20   hover:bg-blue-400/20'   },
+  { value: 'closed',     label: 'Cerrado',       color: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20 hover:bg-emerald-400/20' },
+  { value: 'rejected',   label: 'Rechazado',     color: 'text-red-400    bg-red-400/10    border-red-400/20    hover:bg-red-400/20'    },
 ]
 
 export default function StatusBar({ assignmentId, currentStatus, onStatusChange }) {

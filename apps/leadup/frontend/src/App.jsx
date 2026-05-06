@@ -1,9 +1,9 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth'
+import { ThemeProvider } from './hooks/useTheme'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Pipeline from './pages/Pipeline'
-import Scripts from './pages/Scripts'
 import Analytics from './pages/Analytics'
 import Ajustes from './pages/Ajustes'
 
@@ -52,14 +52,6 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/scripts"
-        element={
-          <PrivateRoute>
-            <Scripts />
-          </PrivateRoute>
-        }
-      />
-      <Route
         path="/analytics"
         element={
           <AdminRoute>
@@ -82,10 +74,12 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
-    </BrowserRouter>
+    <ThemeProvider>
+      <BrowserRouter>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </BrowserRouter>
+    </ThemeProvider>
   )
 }

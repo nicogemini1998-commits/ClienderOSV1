@@ -2,6 +2,21 @@ import { useState, useEffect } from 'react'
 import StatusBar from './StatusBar'
 import { notesApi, contactsApi, leadsApi } from '../lib/api'
 
+function isMobilePrefix(prefix) {
+  if (!prefix) return false
+  const p = prefix.replace(/\D/g, '')
+  return p.startsWith('6') || p.startsWith('7')
+}
+
+function EyeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  )
+}
+
 const OPP_STYLES = {
   alta:  'text-emerald-400 bg-emerald-400/10 border-emerald-400/30',
   media: 'text-amber-400  bg-amber-400/10  border-amber-400/30',
@@ -96,6 +111,120 @@ function PencilIcon() {
   )
 }
 
+function ReportContent({ content }) {
+  const renderInline = (text) => {
+    const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g)
+    return parts.map((part, i) => {
+      if (part.startsWith('**') && part.endsWith('**'))
+        return <strong key={i} className="text-white font-semibold">{part.slice(2, -2)}</strong>
+      if (part.startsWith('*') && part.endsWith('*'))
+        return <em key={i} className="italic">{part.slice(1, -1)}</em>
+      return part
+    })
+  }
+
+  const blocks = []
+  const lines = content.split('\n')
+  let i = 0
+
+  while (i < lines.length) {
+    const line = lines[i]
+
+    if (line.startsWith('# ')) {
+      blocks.push(<h1 key={i} className="text-xl font-black text-white mt-4 mb-1">{line.slice(2)}</h1>)
+    } else if (line.startsWith('## ')) {
+      blocks.push(<h2 key={i} className="text-base font-black text-white mt-6 mb-2 pb-1 border-b border-surface-border">{line.slice(3)}</h2>)
+    } else if (line.startsWith('### ')) {
+      blocks.push(<h3 key={i} className="text-sm font-bold text-accent uppercase tracking-wider mt-4 mb-2">{line.slice(4)}</h3>)
+    } else if (/^---+$/.test(line.trim())) {
+      blocks.push(<hr key={i} className="border-surface-border/60 my-3" />)
+    } else if (line.startsWith('- ') || line.startsWith('* ')) {
+      const items = []
+      while (i < lines.length && (lines[i].startsWith('- ') || lines[i].startsWith('* '))) {
+        items.push(lines[i].slice(2))
+        i++
+      }
+      blocks.push(
+        <ul key={`ul-${i}`} className="space-y-1.5 my-2">
+          {items.map((item, j) => (
+            <li key={j} className="flex gap-2 text-sm text-slate-300 leading-relaxed">
+              <span className="text-accent flex-shrink-0 mt-0.5">›</span>
+              <span>{renderInline(item)}</span>
+            </li>
+          ))}
+        </ul>
+      )
+      continue
+    } else if (/^\d+\. /.test(line)) {
+      const items = []
+      while (i < lines.length && /^\d+\. /.test(lines[i])) {
+        items.push(lines[i].replace(/^\d+\. /, ''))
+        i++
+      }
+      blocks.push(
+        <ol key={`ol-${i}`} className="space-y-1.5 my-2">
+          {items.map((item, j) => (
+            <li key={j} className="flex gap-2 text-sm text-slate-300 leading-relaxed">
+              <span className="text-accent font-bold flex-shrink-0 w-4">{j + 1}.</span>
+              <span>{renderInline(item)}</span>
+            </li>
+          ))}
+        </ol>
+      )
+      continue
+    } else if (line.startsWith('|')) {
+      const rows = []
+      while (i < lines.length && lines[i].startsWith('|')) {
+        rows.push(lines[i])
+        i++
+      }
+      const isHeaderNext = rows[1] && /^\|[-|: ]+\|$/.test(rows[1].trim())
+      const parseRow = (row) => row.split('|').filter(c => c.trim() !== '').map(c => c.trim())
+      const dataRows = isHeaderNext ? rows.slice(2) : rows.filter(r => !/^\|[-|: ]+\|$/.test(r.trim()))
+      blocks.push(
+        <div key={`table-${i}`} className="my-3 rounded-xl border border-surface-border overflow-hidden">
+          <table className="w-full text-sm">
+            {isHeaderNext && (
+              <thead>
+                <tr className="bg-surface-raised">
+                  {parseRow(rows[0]).map((cell, j) => (
+                    <th key={j} className="text-left text-xs font-bold text-slate-400 uppercase tracking-wider px-3 py-2 border-b border-surface-border">
+                      {renderInline(cell)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+            )}
+            <tbody>
+              {dataRows.map((row, j) => (
+                <tr key={j} className="border-b border-surface-border/40 last:border-0 hover:bg-surface-hover/30 transition-colors">
+                  {parseRow(row).map((cell, k) => (
+                    <td key={k} className="text-slate-300 px-3 py-2.5 align-top leading-relaxed">
+                      {renderInline(cell)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )
+      continue
+    } else if (line.trim() === '') {
+      blocks.push(<div key={i} className="h-1" />)
+    } else {
+      blocks.push(
+        <p key={i} className="text-sm text-slate-300 leading-relaxed my-1">
+          {renderInline(line)}
+        </p>
+      )
+    }
+    i++
+  }
+
+  return <div className="space-y-0.5">{blocks}</div>
+}
+
 export default function CompanyModal({ lead, onClose, onStatusChange, onContactChange }) {
   const [notes, setNotes] = useState(lead?.notes || '')
   const [savingNotes, setSavingNotes] = useState(false)
@@ -126,6 +255,17 @@ export default function CompanyModal({ lead, onClose, onStatusChange, onContactC
   })
   const [savingContact, setSavingContact] = useState(false)
   const [contactError, setContactError] = useState(null)
+
+  const [revealedPhone, setRevealedPhone] = useState(
+    lead?.contact?.phone_revealed ? lead?.contact?.phone : null
+  )
+  const [revealing, setRevealing] = useState(false)
+  const [revealError, setRevealError] = useState(null)
+
+  const [report, setReport] = useState(null)
+  const [reportLoading, setReportLoading] = useState(false)
+  const [reportError, setReportError] = useState(null)
+  const [reportCached, setReportCached] = useState(false)
 
   useEffect(() => {
     const handleKey = (e) => { if (e.key === 'Escape') onClose() }
@@ -183,9 +323,49 @@ export default function CompanyModal({ lead, onClose, onStatusChange, onContactC
     }
   }
 
+  const handleGenerateReport = async (forceRegenerate = false) => {
+    if (reportLoading) return
+    if (forceRegenerate) {
+      try { await leadsApi.clearReportCache(lead.assignment_id) } catch (_) {}
+    }
+    setReportLoading(true)
+    setReportError(null)
+    try {
+      const res = await leadsApi.generateReport(lead.assignment_id)
+      setReport(res.data.report)
+      setReportCached(res.data.cached)
+    } catch (err) {
+      setReportError(err.response?.data?.detail || 'Error al generar el informe')
+    } finally {
+      setReportLoading(false)
+    }
+  }
+
+  const handleRevealPhone = async () => {
+    if (revealing) return
+    setRevealing(true)
+    setRevealError(null)
+    try {
+      const res = await leadsApi.revealPhone(lead.assignment_id)
+      const phone = res.data.phone
+      setRevealedPhone(phone)
+      setContact(prev => prev ? { ...prev, phone, phone_revealed: true } : prev)
+    } catch (err) {
+      const msg = err.response?.data?.detail || 'Error al revelar el número'
+      setRevealError(msg)
+    } finally {
+      setRevealing(false)
+    }
+  }
+
   if (!lead) return null
   const { company, assignment_id, status } = lead
-  const mobile = contact?.phone || company.phone
+  const displayPhone = revealedPhone || contact?.phone || company.phone
+  const mobile = displayPhone
+  const isRevealed = !!revealedPhone || contact?.phone_revealed
+  const hasLusha = !!contact?.lusha_person_id
+  const prefix = contact?.phone_prefix || ''
+  const isMobile = isMobilePrefix(prefix)
   const oppStyle = OPP_STYLES[company.opportunity_level] || OPP_STYLES.media
   const { sales, tech, content } = buildOpportunities(company)
 
@@ -366,11 +546,51 @@ export default function CompanyModal({ lead, onClose, onStatusChange, onContactC
                         </div>
                       </div>
 
-                      {mobile ? (
+                      {isRevealed && mobile ? (
                         <a
                           href={`tel:${mobile}`}
                           onClick={(e) => e.stopPropagation()}
                           className="flex items-center gap-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded-xl px-4 py-2.5 font-mono font-bold text-sm transition-colors flex-shrink-0"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 9a16 16 0 0 0 7.09 7.09l.41-.41a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 17.92z" />
+                          </svg>
+                          {mobile}
+                        </a>
+                      ) : !isRevealed && hasLusha ? (
+                        <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                          <button
+                            onClick={handleRevealPhone}
+                            disabled={revealing}
+                            className={`flex items-center gap-2 rounded-xl px-4 py-2.5 font-semibold text-sm border transition-colors
+                              ${isMobile
+                                ? 'bg-emerald-400/10 hover:bg-emerald-400/20 border-emerald-400/30 text-emerald-400'
+                                : 'bg-surface-raised hover:bg-surface-hover border-surface-border text-slate-300'
+                              } disabled:opacity-50`}
+                          >
+                            {revealing ? (
+                              <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <EyeIcon />
+                            )}
+                            {revealing ? 'Revelando…' : (
+                              prefix
+                                ? <>Revelar <span className="font-mono">{prefix}X…</span></>
+                                : 'Revelar móvil'
+                            )}
+                          </button>
+                          {isMobile && !revealing && (
+                            <span className="text-[10px] text-emerald-400/70">Móvil detectado</span>
+                          )}
+                          {revealError && (
+                            <span className="text-[10px] text-red-400">{revealError}</span>
+                          )}
+                        </div>
+                      ) : mobile ? (
+                        <a
+                          href={`tel:${mobile}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex items-center gap-2 bg-accent/10 hover:bg-accent/20 border border-accent/30 text-accent rounded-xl px-4 py-2.5 font-mono font-bold text-sm transition-colors flex-shrink-0"
                         >
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
                             <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 9a16 16 0 0 0 7.09 7.09l.41-.41a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 17.92z" />
@@ -485,7 +705,7 @@ export default function CompanyModal({ lead, onClose, onStatusChange, onContactC
                   min={new Date().toISOString().split('T')[0]}
                   onChange={(e) => handleFollowUpChange(e.target.value)}
                   disabled={savingFollowUp}
-                  className="bg-surface-raised border border-surface-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50 transition-colors disabled:opacity-50 [color-scheme:dark]"
+                  className="bg-surface-raised border border-surface-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50 transition-colors disabled:opacity-50"
                 />
               </div>
               {followUpDate && (
@@ -501,6 +721,75 @@ export default function CompanyModal({ lead, onClose, onStatusChange, onContactC
                 <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin mt-4 flex-shrink-0" />
               )}
             </div>
+          </section>
+
+          {/* INFORME IA */}
+          <section>
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] whitespace-nowrap">
+                Informe Comercial IA
+              </span>
+              <div className="flex-1 h-px bg-surface-border" />
+              {report && (
+                <button
+                  onClick={() => handleGenerateReport(true)}
+                  disabled={reportLoading}
+                  className="text-xs text-slate-500 hover:text-accent transition-colors flex-shrink-0"
+                >
+                  Regenerar
+                </button>
+              )}
+            </div>
+
+            {!report ? (
+              <div className="bg-surface-card border border-surface-border rounded-xl p-5 text-center">
+                <div className="text-2xl mb-2">🧠</div>
+                <p className="text-sm text-slate-400 mb-1">Análisis completo de la empresa</p>
+                <p className="text-xs text-slate-600 mb-4">Dolores, argumentario, objeciones y plan de cierre personalizado</p>
+                {reportError && (
+                  <p className="text-xs text-red-400 mb-3">{reportError}</p>
+                )}
+                <button
+                  onClick={() => handleGenerateReport(false)}
+                  disabled={reportLoading}
+                  className="btn-primary text-sm flex items-center gap-2 mx-auto"
+                >
+                  {reportLoading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Generando informe…
+                    </>
+                  ) : (
+                    <>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                        <path d="M12 2a10 10 0 1 0 10 10H12V2z" />
+                        <path d="M12 2a10 10 0 0 1 10 10" />
+                        <path d="M12 12l8.5-8.5" />
+                      </svg>
+                      Generar Informe IA
+                    </>
+                  )}
+                </button>
+              </div>
+            ) : (
+              <div className="bg-surface-card border border-surface-border rounded-xl overflow-hidden">
+                {reportCached && (
+                  <div className="px-4 py-2 bg-amber-400/5 border-b border-surface-border flex items-center justify-between">
+                    <span className="text-[10px] text-amber-400/70">Informe en caché</span>
+                    <button
+                      onClick={() => handleGenerateReport(true)}
+                      disabled={reportLoading}
+                      className="text-[10px] text-slate-500 hover:text-accent transition-colors"
+                    >
+                      Regenerar con IA →
+                    </button>
+                  </div>
+                )}
+                <div className="p-5 prose-sm max-w-none overflow-y-auto max-h-[500px]">
+                  <ReportContent content={report} />
+                </div>
+              </div>
+            )}
           </section>
 
           {/* NOTAS DEL COMERCIAL */}

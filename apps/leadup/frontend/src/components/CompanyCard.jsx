@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import StatusBar from './StatusBar'
+import { leadsApi } from '../lib/api'
 
 const OPP_STYLES = {
   alta:  { chip: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/30', dot: 'bg-emerald-400', label: '↑ Alta' },
@@ -18,6 +20,12 @@ function formatWhatsAppNumber(phone) {
   if (digits.startsWith('34') && digits.length === 11) return digits
   if (digits.length === 9) return '34' + digits
   return digits.length >= 10 ? digits : null
+}
+
+function isMobilePrefix(prefix) {
+  if (!prefix) return false
+  const p = prefix.replace(/\D/g, '')
+  return p.startsWith('6') || p.startsWith('7')
 }
 
 function getFollowUpBadge(followUpDate) {
@@ -48,16 +56,52 @@ function WhatsAppIcon() {
   )
 }
 
-export default function CompanyCard({ lead, onClick, onStatusChange }) {
+function EyeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5 flex-shrink-0">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  )
+}
+
+export default function CompanyCard({ lead, onClick, onStatusChange, onPhoneRevealed }) {
   const { company, contact, assignment_id, status, follow_up_date } = lead
+  const [revealedPhone, setRevealedPhone] = useState(
+    contact?.phone_revealed ? contact.phone : null
+  )
+  const [revealing, setRevealing] = useState(false)
+
   const opp = OPP_STYLES[company.opportunity_level] || OPP_STYLES.media
-  const mobile = contact?.phone || company.phone
-  const waNumber = formatWhatsAppNumber(mobile)
+  const displayPhone = revealedPhone || contact?.phone || company.phone
+  const waNumber = formatWhatsAppNumber(displayPhone)
   const openingLine = company.opening_lines?.[0] || ''
   const waUrl = waNumber
     ? `https://wa.me/${waNumber}${openingLine ? `?text=${encodeURIComponent(openingLine)}` : ''}`
     : null
   const followUpBadge = getFollowUpBadge(follow_up_date)
+
+  // Phone reveal logic
+  const hasLusha = !!contact?.lusha_person_id
+  const isRevealed = !!revealedPhone || contact?.phone_revealed
+  const prefix = contact?.phone_prefix || ''
+  const isMobile = isMobilePrefix(prefix)
+
+  const handleReveal = async (e) => {
+    e.stopPropagation()
+    if (revealing || isRevealed) return
+    setRevealing(true)
+    try {
+      const res = await leadsApi.revealPhone(assignment_id)
+      const phone = res.data.phone
+      setRevealedPhone(phone)
+      onPhoneRevealed?.(assignment_id, phone)
+    } catch (err) {
+      console.error('Reveal failed:', err)
+    } finally {
+      setRevealing(false)
+    }
+  }
 
   return (
     <article
@@ -124,15 +168,46 @@ export default function CompanyCard({ lead, onClick, onStatusChange }) {
               </div>
 
               <div className="flex items-center gap-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                {mobile && (
+                {/* Phone reveal / call button */}
+                {isRevealed ? (
+                  <>
+                    <a
+                      href={`tel:${displayPhone}`}
+                      className="flex items-center gap-1 bg-accent/10 hover:bg-accent/20 border border-accent/30 text-accent rounded-lg px-2 py-1.5 text-xs font-mono transition-colors"
+                    >
+                      <PhoneIcon />
+                    </a>
+                    <span className="text-xs font-mono text-slate-400">{displayPhone}</span>
+                  </>
+                ) : hasLusha ? (
+                  <button
+                    onClick={handleReveal}
+                    disabled={revealing}
+                    title={isMobile ? 'Móvil detectado — revelar número completo' : 'Revelar número completo'}
+                    className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold border transition-colors
+                      ${isMobile
+                        ? 'bg-emerald-400/10 hover:bg-emerald-400/20 border-emerald-400/30 text-emerald-400'
+                        : 'bg-surface-raised hover:bg-surface-hover border-surface-border text-slate-400'
+                      } disabled:opacity-50`}
+                  >
+                    {revealing ? (
+                      <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <EyeIcon />
+                    )}
+                    {prefix ? `${prefix}X…` : 'Revelar'}
+                  </button>
+                ) : displayPhone ? (
                   <a
-                    href={`tel:${mobile}`}
+                    href={`tel:${displayPhone}`}
                     className="flex items-center gap-1 bg-accent/10 hover:bg-accent/20 border border-accent/30 text-accent rounded-lg px-2 py-1.5 text-xs font-mono transition-colors"
                   >
                     <PhoneIcon />
+                    <span>{displayPhone}</span>
                   </a>
-                )}
-                {waUrl && (
+                ) : null}
+
+                {waUrl && isRevealed && (
                   <a
                     href={waUrl}
                     target="_blank"
@@ -143,34 +218,21 @@ export default function CompanyCard({ lead, onClick, onStatusChange }) {
                     <WhatsAppIcon />
                   </a>
                 )}
-                {mobile && (
-                  <span className="text-xs font-mono text-slate-400">{mobile}</span>
-                )}
               </div>
             </div>
           ) : (
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs text-slate-600 italic">Sin contacto asignado</span>
-              <div className="flex items-center gap-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                {mobile && (
+              {displayPhone && (
+                <div className="flex items-center gap-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                   <a
-                    href={`tel:${mobile}`}
+                    href={`tel:${displayPhone}`}
                     className="flex items-center gap-1 bg-accent/10 hover:bg-accent/20 border border-accent/30 text-accent rounded-lg px-2 py-1.5 text-xs transition-colors"
                   >
                     <PhoneIcon />
                   </a>
-                )}
-                {waUrl && (
-                  <a
-                    href={waUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 bg-green-500/10 hover:bg-green-500/20 border border-green-500/30 text-green-400 rounded-lg px-2 py-1.5 text-xs transition-colors"
-                  >
-                    <WhatsAppIcon />
-                  </a>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           )}
         </div>

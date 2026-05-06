@@ -8,16 +8,16 @@ export default {
     extend: {
       colors: {
         surface: {
-          DEFAULT: '#0f1117',
-          raised: '#161b27',
-          card: '#1c2232',
-          border: '#2a3347',
-          hover: '#222840',
+          DEFAULT: 'rgb(var(--color-surface) / <alpha-value>)',
+          raised: 'rgb(var(--color-surface-raised) / <alpha-value>)',
+          card: 'rgb(var(--color-surface-card) / <alpha-value>)',
+          border: 'rgb(var(--color-surface-border) / <alpha-value>)',
+          hover: 'rgb(var(--color-surface-hover) / <alpha-value>)',
         },
         accent: {
-          DEFAULT: '#4f8ef7',
-          light: '#7aaeff',
-          dark: '#2d6dd4',
+          DEFAULT: 'rgb(var(--color-accent) / <alpha-value>)',
+          light: 'rgb(var(--color-accent-light) / <alpha-value>)',
+          dark: 'rgb(var(--color-accent-dark) / <alpha-value>)',
         },
         status: {
           pending: '#f59e0b',

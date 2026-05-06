@@ -106,7 +106,30 @@ async def init_db() -> None:
             "ALTER TABLE lu_contacts ADD COLUMN phone_prefix TEXT",
             "ALTER TABLE lu_companies ADD COLUMN sales_report TEXT",
             "ALTER TABLE lu_companies ADD COLUMN report_generated_at TEXT",
+            # Lusha reveal cache
+            "ALTER TABLE lu_contacts ADD COLUMN revealed_phone TEXT",
+            "ALTER TABLE lu_contacts ADD COLUMN revealed_email TEXT",
+            "ALTER TABLE lu_contacts ADD COLUMN revealed_at TEXT",
+            # Claude enrichment cache
+            "ALTER TABLE lu_companies ADD COLUMN enrichment TEXT",
+            "ALTER TABLE lu_companies ADD COLUMN enriched_at TEXT",
         ]
+
+        # lu_reminders table (created here as well so it exists even before first request)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS lu_reminders (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                assignment_id INTEGER NOT NULL REFERENCES lu_daily_assignments(id) ON DELETE CASCADE,
+                text          TEXT    NOT NULL,
+                due_at        TEXT,
+                done          INTEGER NOT NULL DEFAULT 0,
+                position      INTEGER NOT NULL DEFAULT 0,
+                created_at    TEXT    DEFAULT (datetime('now'))
+            )
+        """)
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_reminders_assignment ON lu_reminders(assignment_id)"
+        )
         for sql in migrations:
             try:
                 await conn.execute(sql)

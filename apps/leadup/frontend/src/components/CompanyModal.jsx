@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react'
 import StatusBar from './StatusBar'
+import OpportunitiesSection from './OpportunitiesSection'
+import RemindersList from './RemindersList'
 import { notesApi, contactsApi, leadsApi } from '../lib/api'
+import { useCompanyEnrichment } from '../hooks/useCompanyEnrichment'
+import { useReminders } from '../hooks/useReminders'
 
 function isMobilePrefix(prefix) {
   if (!prefix) return false
@@ -266,6 +270,23 @@ export default function CompanyModal({ lead, onClose, onStatusChange, onContactC
   const [reportLoading, setReportLoading] = useState(false)
   const [reportError, setReportError] = useState(null)
   const [reportCached, setReportCached] = useState(false)
+
+  // ── Hooks: Opportunities + Reminders ──────────────────────────────────────
+  const {
+    enrichment,
+    loading: enrichmentLoading,
+    error: enrichmentError,
+    cached: enrichmentCached,
+    enrich,
+  } = useCompanyEnrichment(lead?.assignment_id)
+
+  const {
+    reminders,
+    loading: remindersLoading,
+    add: addReminder,
+    edit: editReminder,
+    delete: deleteReminder,
+  } = useReminders(lead?.assignment_id)
 
   useEffect(() => {
     const handleKey = (e) => { if (e.key === 'Escape') onClose() }
@@ -690,6 +711,30 @@ export default function CompanyModal({ lead, onClose, onStatusChange, onContactC
               </ul>
             </section>
           )}
+
+          {/* OPORTUNIDADES HBD — AI enrichment */}
+          <section>
+            <OpportunitiesSection
+              enrichment={enrichment}
+              loading={enrichmentLoading}
+              error={enrichmentError}
+              cached={enrichmentCached}
+              onGenerate={() => enrich({ force: false })}
+              onRegenerate={() => enrich({ force: true })}
+            />
+          </section>
+
+          {/* RECORDATORIOS */}
+          <section>
+            <SectionLabel>Recordatorios</SectionLabel>
+            <RemindersList
+              reminders={reminders}
+              loading={remindersLoading}
+              onAdd={addReminder}
+              onEdit={editReminder}
+              onDelete={deleteReminder}
+            />
+          </section>
 
           {/* RECORDATORIO DE SEGUIMIENTO */}
           <section>

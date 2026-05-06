@@ -372,6 +372,144 @@ async def lusha_load(
     }
 
 
+@router.post("/load-real-leads")
+async def load_real_leads(
+    background_tasks: BackgroundTasks,
+    current_user: dict = Depends(require_admin),
+):
+    """
+    Scrape real leads from Google Maps via Apify, enrich with Claude,
+    delete all fake/test leads and assign real ones to Toni(2), Ruben(4), Ethan(5).
+    """
+    from services.apify_gmaps import fetch_real_leads
+    from services.enrichment import enrich_company
+
+    async def _task():
+        import json as _json
+        from datetime import date as _date
+
+        logger.info("Starting real lead load via Apify + Claude enrichment")
+
+        # 1. Fetch real leads from Google Maps
+        try:
+            leads = await fetch_real_leads(per_search=8)
+        except Exception as e:
+            logger.error(f"Apify fetch failed: {e}")
+            return
+
+        if not leads:
+            logger.error("No leads returned from Apify")
+            return
+
+        logger.info(f"Apify returned {len(leads)} real leads")
+
+        # 2. Wipe all existing fake/test data (only non-real companies)
+        async with get_conn() as conn:
+            # Delete all assignments for Toni, Ruben, Ethan and Nicolas
+            await conn.execute("DELETE FROM lu_daily_assignments WHERE user_id IN (1, 2, 4, 5)")
+            # Delete contacts and companies that have no website (fake/test data markers)
+            await conn.execute(
+                "DELETE FROM lu_contacts WHERE company_id IN "
+                "(SELECT id FROM lu_companies WHERE website IS NULL OR website = '' OR website LIKE 'www.%' OR rating IS NULL)"
+            )
+            await conn.execute(
+                "DELETE FROM lu_companies WHERE website IS NULL OR website = '' OR website LIKE 'www.%' OR rating IS NULL"
+            )
+            await conn.commit()
+            logger.info("Wiped fake/test leads from database")
+
+        # 3. Insert real leads + enrich + assign
+        target_users = [2, 4, 5]  # Toni, Ruben, Ethan
+        today = str(_date.today())
+        loaded = 0
+
+        for i, lead in enumerate(leads[:30]):
+            user_id = target_users[i % len(target_users)]
+            try:
+                # Dedup by phone
+                async with get_conn() as conn:
+                    cur = await conn.execute(
+                        "SELECT id FROM lu_companies WHERE phone = ?", (lead["phone"],)
+                    )
+                    existing = await cur.fetchone()
+                    if existing:
+                        company_id = existing["id"]
+                    else:
+                        # Enrich with Claude
+                        try:
+                            enrichment = await enrich_company({
+                                "name": lead["name"],
+                                "phone": lead["phone"],
+                                "website": lead.get("website", ""),
+                                "city": lead["city"],
+                                "industry": lead["industry"],
+                            })
+                        except Exception as ex:
+                            logger.warning(f"Enrichment failed for {lead['name']}: {ex}")
+                            enrichment = {}
+
+                        cur = await conn.execute(
+                            """INSERT INTO lu_companies
+                              (name, phone, website, city, industry, rating, reviews_count,
+                               digital_score, opportunity_level,
+                               redes_sociales, captacion_leads, email_marketing,
+                               video_contenido, seo_info, hooks, opening_lines, opportunity_analysis)
+                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                            (
+                                lead["name"],
+                                lead["phone"],
+                                lead.get("website", ""),
+                                lead["city"],
+                                lead["industry"],
+                                lead.get("rating"),
+                                lead.get("reviews_count"),
+                                enrichment.get("digital_score", 40),
+                                enrichment.get("opportunity_level", "media"),
+                                1 if enrichment.get("redes_sociales") else 0,
+                                1 if enrichment.get("captacion_leads") else 0,
+                                1 if enrichment.get("email_marketing") else 0,
+                                1 if enrichment.get("video_contenido") else 0,
+                                1 if enrichment.get("seo_info") else 0,
+                                _json.dumps(enrichment.get("hooks", [])),
+                                _json.dumps(enrichment.get("opening_lines", [])),
+                                enrichment.get("opportunity_analysis", ""),
+                            ),
+                        )
+                        company_id = cur.lastrowid
+                        await conn.commit()
+
+                        # Contact with phone from Google Maps (public info)
+                        await conn.execute(
+                            """INSERT INTO lu_contacts (company_id, name, phone, title, phone_revealed)
+                            VALUES (?, ?, ?, ?, 1)""",
+                            (company_id, lead["name"], lead["phone"], "Responsable"),
+                        )
+                        await conn.commit()
+
+                # Assign to user
+                async with get_conn() as conn:
+                    await conn.execute(
+                        """INSERT OR IGNORE INTO lu_daily_assignments
+                           (company_id, user_id, assigned_date, status)
+                           VALUES (?,?,?,?)""",
+                        (company_id, user_id, today, "pending"),
+                    )
+                    await conn.commit()
+                loaded += 1
+
+            except Exception as ex:
+                logger.error(f"Error loading lead {lead.get('name')}: {ex}")
+
+        logger.info(f"Real lead load complete: {loaded}/{len(leads)} leads inserted")
+
+    background_tasks.add_task(_task)
+    return {
+        "message": "Carga de leads reales iniciada (Google Maps + Claude). Tarda ~5 minutos.",
+        "users": ["Toni", "Ruben", "Ethan"],
+        "note": "Se eliminarán leads de prueba y se cargarán leads 100% reales.",
+    }
+
+
 @router.post("/scrape-now", tags=["admin"])
 async def scrape_now(
     background_tasks: BackgroundTasks,

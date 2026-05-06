@@ -67,6 +67,16 @@ export const contactsApi = {
   update: (contactId, data) => api.patch(`/contacts/${contactId}`, data),
 }
 
+// Reminders
+export const remindersApi = {
+  list: (assignmentId) => api.get(`/assignments/${assignmentId}/reminders`),
+  create: (assignmentId, data) => api.post(`/assignments/${assignmentId}/reminders`, data),
+  update: (assignmentId, reminderId, data) =>
+    api.patch(`/assignments/${assignmentId}/reminders/${reminderId}`, data),
+  delete: (assignmentId, reminderId) =>
+    api.delete(`/assignments/${assignmentId}/reminders/${reminderId}`),
+}
+
 // Admin
 export const adminApi = {
   assignNow: (userId = null, count = 20) =>

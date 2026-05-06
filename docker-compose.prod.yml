@@ -1,0 +1,57 @@
+##############################################################
+#  ClienderOS V1 — Docker Compose (producción VPS)
+#
+#  Levanta leadup-backend y leadup-frontend con images pre-built
+#  (Sin volúmenes de desarrollo, sin hot-reload)
+##############################################################
+
+services:
+
+  # ── LeadUp Backend ──────────────────────────────
+  leadup-backend:
+    build:
+      context: ./leadup/backend
+      dockerfile: Dockerfile
+      target: prod                     # imagen de producción, no dev
+    container_name: leadup-backend
+    environment:
+      PYTHONUNBUFFERED: "1"
+      PORT: 8002
+      ENVIRONMENT: production
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      LUSHA_API_KEY: ${LUSHA_API_KEY:-}
+      APIFY_API_KEY: ${APIFY_API_KEY:-}
+      JWT_SECRET: ${LEADUP_JWT_SECRET:-leadup_jwt_dev_secret_2024}
+      APOLLO_API_KEY: ${APOLLO_API_KEY:-}
+      FRONTEND_URL: https://leadup.cliender.com
+    ports:
+      - "8002:8002"
+    volumes:
+      - leadup_data:/app                # Persistencia de DB y datos
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # ── LeadUp Frontend ──────────────────────────────
+  leadup-frontend:
+    build:
+      context: ./leadup/frontend
+      dockerfile: Dockerfile
+      target: prod                    # imagen de producción con nginx
+    container_name: leadup-frontend
+    environment:
+      VITE_API_URL: http://localhost:8002
+    ports:
+      - "5174:80"
+    depends_on:
+      leadup-backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  leadup_data:
+    driver: local

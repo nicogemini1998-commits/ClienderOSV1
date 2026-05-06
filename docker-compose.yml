@@ -5,12 +5,23 @@
 #    Studio   → backend: localhost:3005  |  frontend: localhost:5173
 #    LeadUp   → backend: localhost:8002  |  frontend: localhost:5174
 #
+#  Profiles:
+#    [sin profile] → PostgreSQL (siempre levanta — transversal)
+#    studio      → Studio + PostgreSQL
+#    leadup      → LeadUp + PostgreSQL
+#
 #  Uso:
-#    cp .env.example .env          # solo la primera vez
-#    docker compose up             # levanta todo
-#    docker compose up studio-*    # solo Studio
-#    docker compose up leadup-*    # solo LeadUp
-#    docker compose down           # para todo
+#    cp .env.example .env                       # solo la primera vez
+#    docker compose up                          # postgres solo (base)
+#    docker compose --profile studio up         # Studio + postgres
+#    docker compose --profile leadup up         # LeadUp + postgres
+#    docker compose --profile studio,leadup up  # ambas apps + postgres
+#    docker compose down                        # para todo
+#
+#  Atajos:
+#    docker compose --profile studio up -d      # Studio background
+#    docker compose --profile leadup up -d      # LeadUp background
+#    docker compose --profile leadup logs -f    # logs en vivo
 ##############################################################
 
 services:
@@ -19,6 +30,7 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: cliender-postgres
+    # Sin profile: levanta siempre (transversal, usado por Studio)
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-cliender}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cliender_dev_pass}
@@ -46,6 +58,8 @@ services:
       dockerfile: Dockerfile
       target: dev                      # hot-reload via node --watch
     container_name: studio-backend
+    profiles:
+      - studio    # levanta con: docker compose --profile studio up
     volumes:
       - ./apps/studio/backend:/app     # código montado para hot-reload
       - /app/node_modules              # node_modules dentro del contenedor
@@ -81,6 +95,8 @@ services:
       dockerfile: Dockerfile
       target: dev                      # vite dev server con HMR
     container_name: studio-frontend
+    profiles:
+      - studio    # levanta con: docker compose --profile studio up
     volumes:
       - ./apps/studio/frontend:/app    # código montado para HMR
       - /app/node_modules
@@ -106,6 +122,8 @@ services:
       dockerfile: Dockerfile
       target: dev                      # uvicorn --reload con hot-reload
     container_name: leadup-backend
+    profiles:
+      - leadup    # levanta con: docker compose --profile leadup up
     volumes:
       - ./apps/leadup/backend:/app     # código montado para hot-reload
     environment:
@@ -135,6 +153,8 @@ services:
       dockerfile: Dockerfile
       target: dev                      # vite dev server con HMR
     container_name: leadup-frontend
+    profiles:
+      - leadup    # levanta con: docker compose --profile leadup up
     volumes:
       - ./apps/leadup/frontend:/app    # código montado para HMR
       - /app/node_modules

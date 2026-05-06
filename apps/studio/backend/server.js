@@ -25,7 +25,18 @@ app.use(cors());
 app.use(express.json());
 
 // ─── Serve static frontend files ────────────────────────────
-app.use(express.static('public'));
+app.use(express.static('public', {
+  setHeaders: (res, path) => {
+    if (path.endsWith('index.html')) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    }
+  }
+}));
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api')) return next();
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.sendFile('index.html', { root: 'public' });
+});
 
 // ─── Auth middleware (optional — attaches user to req) ────────
 app.use((req, res, next) => {

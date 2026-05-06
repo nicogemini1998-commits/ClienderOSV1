@@ -137,6 +137,122 @@ function FileUploadSlot({ label, type, value, onChange, maxCount = 1 }) {
   );
 }
 
+function URLInput({ label, value = [], onChange, maxCount = 10 }) {
+  const [inputValue, setInputValue] = useState('');
+  const urls = Array.isArray(value) ? value : [];
+  const canAdd = urls.length < maxCount;
+
+  const isValidURL = (str) => {
+    try { new URL(str); return true; } catch { return false; }
+  };
+
+  const handleAddURL = () => {
+    const trimmed = inputValue.trim();
+    if (!trimmed) return;
+    if (!isValidURL(trimmed)) {
+      alert('Por favor ingresa una URL válida');
+      return;
+    }
+    if (!urls.includes(trimmed)) {
+      onChange([...urls, trimmed]);
+      setInputValue('');
+    }
+  };
+
+  const removeURL = (idx) => {
+    onChange(urls.filter((_, i) => i !== idx));
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddURL();
+    }
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+        <Label>{label}</Label>
+        <span style={{ fontSize: 7, color: 'oklch(42% 0 0)' }}>{urls.length}/{maxCount}</span>
+      </div>
+
+      {/* Input */}
+      {canAdd && (
+        <div style={{ display: 'flex', gap: 3, marginBottom: 5 }}>
+          <input
+            type="text"
+            value={inputValue}
+            onChange={e => setInputValue(e.target.value)}
+            onKeyPress={handleKeyPress}
+            className="nodrag"
+            placeholder="https://example.com/image.jpg"
+            style={{
+              flex: 1, padding: '5px 7px', fontSize: 8, borderRadius: 5, border: 'none',
+              background: 'oklch(100% 0 0 / 0.04)', boxShadow: 'inset 0 0 0 1px oklch(100% 0 0 / 0.08)',
+              color: 'oklch(88% 0 0)', fontFamily: 'IBM Plex Mono, monospace', outline: 'none',
+            }}
+          />
+          <button
+            className="nodrag"
+            onClick={handleAddURL}
+            style={{
+              padding: '5px 8px', borderRadius: 5, border: 'none',
+              background: 'oklch(55% 0.2 155 / 0.15)', color: 'oklch(68% 0.2 155)',
+              fontSize: 8, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+              transition: 'all 150ms',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'oklch(55% 0.2 155 / 0.25)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'oklch(55% 0.2 155 / 0.15)'; }}
+          >
+            Añadir
+          </button>
+        </div>
+      )}
+
+      {/* URLs List */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        {urls.map((url, idx) => (
+          <div
+            key={idx}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4, padding: '5px 7px',
+              background: 'oklch(100% 0 0 / 0.04)', borderRadius: 5, boxShadow: 'inset 0 0 0 1px oklch(100% 0 0 / 0.08)',
+              transition: 'all 150ms',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = 'oklch(100% 0 0 / 0.07)';
+              e.currentTarget.style.boxShadow = 'inset 0 0 0 1px oklch(100% 0 0 / 0.12)';
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = 'oklch(100% 0 0 / 0.04)';
+              e.currentTarget.style.boxShadow = 'inset 0 0 0 1px oklch(100% 0 0 / 0.08)';
+            }}
+          >
+            <div style={{ flex: 1, minWidth: 0, fontSize: 7, color: 'oklch(60% 0 0)', fontFamily: 'IBM Plex Mono, monospace', wordBreak: 'break-all', lineHeight: 1.2 }}>
+              {url.length > 50 ? url.substring(0, 47) + '...' : url}
+            </div>
+            <button
+              className="nodrag"
+              onClick={() => removeURL(idx)}
+              style={{
+                width: 16, height: 16, padding: 0, borderRadius: 3, border: 'none',
+                background: 'oklch(62% 0.22 25 / 0.1)', color: 'oklch(65% 0.2 25)',
+                cursor: 'pointer', fontSize: 8, display: 'flex', alignItems: 'center',
+                justifyContent: 'center', transition: 'all 150ms', flexShrink: 0,
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'oklch(62% 0.22 25 / 0.25)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'oklch(62% 0.22 25 / 0.1)'}
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function VideoNode({ id, data }) {
   const { selectedClient, selectedStyle, user, token, generateContent } = useContext(StudioContext);
   const { deleteElements } = useReactFlow();
@@ -215,20 +331,16 @@ export function VideoNode({ id, data }) {
   useEffect(() => {
     if (genStatus !== 'polling') return;
     pollRef.current = setInterval(async () => {
-      setTasks(prev => {
-        checkTasks(prev).then(updated => {
-          setTasks(updated);
-          const allDone = updated.every(t => t.status !== 'pending');
-          if (allDone) {
-            clearInterval(pollRef.current);
-            setGenStatus(updated.some(t => t.status === 'done') ? 'done' : 'error');
-          }
-        });
-        return prev;
-      });
+      const updated = await checkTasks(tasks);
+      setTasks(updated);
+      const allDone = updated.every(t => t.status !== 'pending');
+      if (allDone) {
+        clearInterval(pollRef.current);
+        setGenStatus(updated.some(t => t.status === 'done') ? 'done' : 'error');
+      }
     }, 5000);
     return () => clearInterval(pollRef.current);
-  }, [genStatus, checkTasks]);
+  }, [genStatus, checkTasks, tasks]);
 
   const handleGenerate = async (explicitPrompt = null) => {
     const resolvedPrompt = explicitPrompt ?? (useAgent ? brief : prompt);
@@ -237,6 +349,13 @@ export function VideoNode({ id, data }) {
       setGenStatus('error');
       return;
     }
+
+    if (!token) {
+      setErrorMsg('Autenticación requerida. Recarga la página.');
+      setGenStatus('error');
+      return;
+    }
+
     setGenStatus('submitting');
     setErrorMsg('');
     setTasks([]);
@@ -260,8 +379,16 @@ export function VideoNode({ id, data }) {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(body),
       });
+
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
+        throw new Error(errData.error || `Error HTTP ${resp.status}`);
+      }
+
       const data = await resp.json();
-      if (!resp.ok) throw new Error(data.error || 'Error al iniciar generación');
+      if (!data.taskIds || data.taskIds.length === 0) {
+        throw new Error('No se iniciaron tareas de generación');
+      }
 
       const initialTasks = (data.taskIds || []).map((taskId, i) => ({
         taskId, prompt: data.prompts?.[i] || body.prompt || body.brief, status: 'pending', url: null,
@@ -269,7 +396,7 @@ export function VideoNode({ id, data }) {
       setTasks(initialTasks);
       setGenStatus('polling');
     } catch (err) {
-      setErrorMsg(err.message);
+      setErrorMsg(err.message || 'Error desconocido');
       setGenStatus('error');
     }
   };
@@ -365,12 +492,8 @@ export function VideoNode({ id, data }) {
         </div>
 
         {/* Config Panel - Collapsible */}
-        <div style={{
-          maxHeight: isConfigOpen ? '1200px' : '0px',
-          overflow: 'hidden',
-          transition: 'max-height 320ms cubic-bezier(0.16, 1, 0.3, 1)',
-        }}>
-          <div style={{ paddingTop: 7, display: 'flex', flexDirection: 'column', gap: 7 }}>
+        {isConfigOpen && (
+        <div style={{ paddingTop: 7, display: 'flex', flexDirection: 'column', gap: 7 }}>
             {/* Settings grid */}
             <div>
               <SectionTitle>Configuración</SectionTitle>
@@ -392,10 +515,10 @@ export function VideoNode({ id, data }) {
               <ChipRow options={DURATIONS.map(d => `${d}s`)} value={`${duration}s`} onChange={d => setDuration(Number(d.replace('s', '')))} accent={155} />
             </div>
 
-            {/* Media uploads */}
+            {/* Keyframes */}
             <div>
               <SectionTitle>Fotogramas clave</SectionTitle>
-              <FileUploadSlot label="Imágenes clave" type="image" value={keyFrames} onChange={setKeyFrames} maxCount={10} />
+              <URLInput label="URLs de imágenes" value={keyFrames} onChange={setKeyFrames} maxCount={10} />
             </div>
 
             <div>
@@ -450,7 +573,7 @@ export function VideoNode({ id, data }) {
               </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Results */}
         {tasks.some(t => t.status === 'done') && (
@@ -525,29 +648,16 @@ export function VideoNode({ id, data }) {
         {/* Generate */}
         <button
           className="nodrag"
-          onClick={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            handleGenerate();
-          }}
-          onMouseDown={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-          }}
-          onPointerDown={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-          }}
+          onClick={() => handleGenerate()}
+          disabled={!canGenerate}
           style={{
             padding: '6px', borderRadius: 8, border: 'none',
-            background: 'linear-gradient(135deg, oklch(55% 0.2 155), oklch(46% 0.22 165))',
-            color: 'oklch(97% 0 0)',
-            fontSize: 9, fontWeight: 700, cursor: 'pointer',
+            background: canGenerate ? 'linear-gradient(135deg, oklch(55% 0.2 155), oklch(46% 0.22 165))' : 'oklch(25% 0 0)',
+            color: canGenerate ? 'oklch(97% 0 0)' : 'oklch(45% 0 0)',
+            fontSize: 9, fontWeight: 700, cursor: canGenerate ? 'pointer' : 'not-allowed',
             fontFamily: 'inherit', letterSpacing: '-0.01em',
-            boxShadow: '0 4px 14px oklch(55% 0.2 155 / 0.3)',
+            boxShadow: canGenerate ? '0 4px 14px oklch(55% 0.2 155 / 0.3)' : 'none',
             transition: 'all 200ms cubic-bezier(0.16,1,0.3,1)',
-            pointerEvents: 'auto',
-            zIndex: 1000,
           }}
         >
           {genStatus === 'submitting' ? '◉ Iniciando...'

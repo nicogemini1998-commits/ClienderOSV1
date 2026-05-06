@@ -209,7 +209,7 @@ const CanvasInner = React.forwardRef(function CanvasInnerComponent({ editMode, u
         style={{ bottom: 16 }}
       />
       {/* Add node buttons */}
-      <div style={{ position: 'absolute', bottom: 18, left: '50%', transform: 'translateX(-50%)', zIndex: 10, display: 'flex', gap: 6 }}>
+      <div style={{ position: 'absolute', bottom: 18, left: '50%', transform: 'translateX(-50%)', zIndex: 10, display: 'flex', gap: 6, pointerEvents: 'none' }}>
         {[
           { type: 'image', label: '🖼 + Imagen', color: '265' },
           { type: 'video', label: '🎬 + Video', color: '155' },
@@ -227,6 +227,7 @@ const CanvasInner = React.forwardRef(function CanvasInnerComponent({ editMode, u
               color: `oklch(65% 0.2 ${color})`, fontSize: 11, fontWeight: 600,
               cursor: 'pointer', fontFamily: 'inherit',
               transition: 'all 180ms cubic-bezier(0.16,1,0.3,1)',
+              pointerEvents: 'auto',
             }}
             onMouseEnter={e => { e.currentTarget.style.background = 'oklch(18% 0.01 250 / 0.98)'; }}
             onMouseLeave={e => { e.currentTarget.style.background = 'oklch(14% 0.01 250 / 0.92)'; }}
@@ -373,12 +374,12 @@ export function ContentStudioCanvas({ onSwitchTool, onBack, initialTemplateId, s
   const [saving, setSaving] = useState(false);
   const canvasRef = useRef();
 
-  const { items: galleryItems, addItem, deleteItem, load: loadGallery } = useGallery();
+  const { items: galleryItems, addItem, deleteItem, load: loadGallery } = useGallery(token);
   const recentMedia = galleryItems.slice(0, 20);
 
   React.useEffect(() => {
-    loadGallery();
-  }, [selectedClient, loadGallery]);
+    if (token) loadGallery({ clientId: selectedClient?.id });
+  }, [selectedClient, token, loadGallery]);
 
   const generateContent = useCallback((results) => {
     results.filter(r => r.url).forEach(r => addItem(r));

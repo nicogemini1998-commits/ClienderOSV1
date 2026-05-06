@@ -25,10 +25,12 @@ export default defineConfig(({ mode }) => {
       sourcemap: false,
       rollupOptions: {
         external: [],
-        onwarn: (warning) => {
-          if (warning.code === 'UNRESOLVED_IMPORT') {
-            return
-          }
+        output: {
+          onwarn: (warning) => {
+            if (warning.code === 'UNRESOLVED_IMPORT') {
+              return
+            }
+          },
         },
       },
     },

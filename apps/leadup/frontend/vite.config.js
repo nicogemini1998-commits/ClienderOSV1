@@ -24,14 +24,7 @@ export default defineConfig(({ mode }) => {
       outDir: 'dist',
       sourcemap: false,
       rollupOptions: {
-        external: [],
-        output: {
-          onwarn: (warning) => {
-            if (warning.code === 'UNRESOLVED_IMPORT') {
-              return
-            }
-          },
-        },
+        external: ['react', 'react-dom', 'react-router-dom'],
       },
     },
   }

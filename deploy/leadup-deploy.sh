@@ -28,10 +28,21 @@ echo "📤 Pushing to GitHub..."
 git push origin main
 
 # Step 3: Sync files to VPS
-echo "📡 Syncing frontend to VPS..."
+echo "📡 Syncing frontend config to VPS..."
+rsync -avz -e "ssh -i $VPS_KEY" \
+  apps/leadup/frontend/package.json \
+  apps/leadup/frontend/package-lock.json \
+  apps/leadup/frontend/vite.config.js \
+  apps/leadup/frontend/tailwind.config.js \
+  apps/leadup/frontend/postcss.config.js \
+  apps/leadup/frontend/.eslintrc.cjs \
+  apps/leadup/frontend/index.html \
+  root@185.97.144.72:/var/www/leadup/frontend/ 2>&1 | tail -5
+
+echo "📡 Syncing frontend source to VPS..."
 rsync -avz -e "ssh -i $VPS_KEY" \
   apps/leadup/frontend/src/ \
-  root@185.97.144.72:/var/www/leadup/frontend/src/ 2>&1 | tail -5
+  root@185.97.144.72:/var/www/leadup/frontend/src/ 2>&1 | tail -3
 
 echo "📡 Syncing frontend public..."
 rsync -avz -e "ssh -i $VPS_KEY" \

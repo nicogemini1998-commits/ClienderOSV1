@@ -70,7 +70,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Routers
+# Routers (register before static files to avoid conflicts)
 app.include_router(auth.router)
 app.include_router(leads.router)
 app.include_router(admin.router)
@@ -92,7 +92,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-# Serve static frontend files (SPA)
+# Serve static frontend files (SPA) - Mount AFTER routers so /api/* routes work
 from pathlib import Path
 if Path('static').exists():
     app.mount('/', StaticFiles(directory='static', html=True), name='static')

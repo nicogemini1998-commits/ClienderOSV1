@@ -23,9 +23,6 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
       sourcemap: false,
-      rollupOptions: {
-        external: ['react', 'react-dom', 'react-router-dom'],
-      },
     },
   }
 })

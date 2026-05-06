@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { AuthProvider, useAuth } from './hooks/useAuth'
-import { ThemeProvider } from './hooks/useTheme'
+import { AuthProvider, useAuth } from './hooks/useAuth.jsx'
+import { ThemeProvider } from './hooks/useTheme.jsx'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Pipeline from './pages/Pipeline'

@@ -72,7 +72,7 @@ async def get_today_leads(
             FROM lu_daily_assignments da
             JOIN lu_companies c ON da.company_id = c.id
             LEFT JOIN lu_contacts ct ON ct.company_id = c.id
-            WHERE da.user_id = ? AND da.assigned_date = ?
+            WHERE da.user_id = ? AND da.status NOT IN ('closed', 'rejected')
             ORDER BY
                 CASE da.status
                     WHEN 'pending' THEN 0
@@ -83,7 +83,7 @@ async def get_today_leads(
                 c.digital_score DESC
             LIMIT 20
             """,
-            (current_user["id"], str(today)),
+            (current_user["id"],),
         )
         rows = await cursor.fetchall()
 

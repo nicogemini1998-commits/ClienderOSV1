@@ -162,13 +162,13 @@ def _extract_city(contact: dict) -> str:
 
 async def reveal_phone(lusha_person_id: str) -> Optional[str]:
     if MOCK_MODE:
-        import random
-        prefixes = ["691", "656", "722", "677", "634", "695", "711", "648", "602", "666"]
-        prefix = lusha_person_id.replace("mock_", "") if lusha_person_id.startswith("mock_") else "6"
-        # Use the stored prefix if available, else generate random digits
-        rand_suffix = "".join([str(random.randint(0, 9)) for _ in range(6)])
-        phone = f"+34 {prefix[:3]} {rand_suffix[:3]} {rand_suffix[3:]}"
-        logger.info(f"[MOCK] Reveal phone for {lusha_person_id}: {phone} (no Lusha credit spent)")
+        # Deterministic: mismos dígitos siempre para el mismo contacto
+        import hashlib
+        seed = int(hashlib.md5(lusha_person_id.encode()).hexdigest(), 16)
+        prefix = lusha_person_id.replace("mock_", "")[:3] if lusha_person_id.startswith("mock_") else "6"
+        d = [(seed >> (i * 4)) % 10 for i in range(6)]
+        phone = f"+34 {prefix} {''.join(map(str,d[:3]))} {''.join(map(str,d[3:]))}"
+        logger.info(f"[MOCK] Reveal phone for {lusha_person_id}: {phone} (deterministic, no Lusha credit)")
         return phone
     """
     Call Lusha to reveal full phone number for a contact.

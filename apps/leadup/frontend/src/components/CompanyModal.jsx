@@ -379,6 +379,33 @@ export default function CompanyModal({ lead, onClose, onStatusChange, onContactC
     }
   }
 
+
+  const saveToContacts = () => {
+    if (!mobile || !contact) return
+    const name = contact.name || company.name
+    const title = contact.title || ''
+    const email = contact.email || ''
+    const phone = mobile.replace(/\s/g, '')
+    const org = company.name || ''
+    const vcard = [
+      'BEGIN:VCARD',
+      'VERSION:3.0',
+      `FN:${name}`,
+      title ? `TITLE:${title}` : '',
+      org ? `ORG:${org}` : '',
+      `TEL;TYPE=CELL:${phone}`,
+      email ? `EMAIL:${email}` : '',
+      'END:VCARD'
+    ].filter(Boolean).join('\r\n')
+    const blob = new Blob([vcard], { type: 'text/vcard;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${name.replace(/\s+/g, '_')}.vcf`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   if (!lead) return null
   const { company, assignment_id, status } = lead
   const displayPhone = revealedPhone || contact?.phone || company.phone
@@ -477,7 +504,7 @@ export default function CompanyModal({ lead, onClose, onStatusChange, onContactC
                 ) : null
               }
             >
-              Decision Makers — Teléfono Móvil Verificado
+              Decision Makers
             </SectionLabel>
 
             {contact ? (
@@ -632,6 +659,23 @@ export default function CompanyModal({ lead, onClose, onStatusChange, onContactC
                         <a href={`mailto:${contact.email}`} className="text-sm text-accent hover:underline truncate">
                           {contact.email}
                         </a>
+                      </div>
+                    )}
+
+                    {mobile && (
+                      <div className="mt-3 pt-3 border-t border-surface-border">
+                        <button
+                          onClick={saveToContacts}
+                          className="flex items-center gap-2 text-xs text-slate-400 hover:text-white transition-colors"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                            <circle cx="9" cy="7" r="4" />
+                            <line x1="19" y1="8" x2="19" y2="14" />
+                            <line x1="22" y1="11" x2="16" y2="11" />
+                          </svg>
+                          Guardar en mis contactos
+                        </button>
                       </div>
                     )}
                   </>

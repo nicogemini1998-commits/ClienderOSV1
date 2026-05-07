@@ -195,14 +195,16 @@ async def reveal_phone(
     assignment_id: int,
     current_user: dict = Depends(get_current_user),
 ):
-    """Reveal full mobile number for a lead contact. Costs one Lusha credit."""
-    from services.lusha_leads import reveal_phone as lusha_reveal
+    """Reveal full mobile number via Lusha real API. Caches result — crédito solo una vez."""
+    from services.lusha_client import reveal_contact
 
     async with get_conn() as conn:
         cursor = await conn.execute(
             """
-            SELECT da.user_id, ct.id AS contact_id, ct.lusha_person_id,
-                   ct.phone_revealed, ct.phone_prefix
+            SELECT da.user_id,
+                   ct.id AS contact_id, ct.name AS contact_name,
+                   ct.revealed_phone, ct.revealed_at,
+                   c.name AS company_name
             FROM lu_daily_assignments da
             JOIN lu_companies c ON da.company_id = c.id
             LEFT JOIN lu_contacts ct ON ct.company_id = c.id
@@ -216,34 +218,24 @@ async def reveal_phone(
         raise HTTPException(status_code=404, detail="Asignación no encontrada")
     if current_user["role"] != "admin" and row["user_id"] != current_user["id"]:
         raise HTTPException(status_code=403, detail="Sin permiso")
-    if row["phone_revealed"]:
-        # Already revealed — just return current phone
-        async with get_conn() as conn:
-            cursor = await conn.execute(
-                "SELECT phone FROM lu_contacts WHERE id = ?", (row["contact_id"],)
-            )
-            ct = await cursor.fetchone()
-        return {"phone": ct["phone"], "already_revealed": True}
-
-    if not row["lusha_person_id"]:
-        raise HTTPException(status_code=422, detail="Este contacto no tiene ID de Lusha para revelar")
 
     try:
-        phone = await lusha_reveal(row["lusha_person_id"])
-    except RuntimeError as e:
-        raise HTTPException(status_code=402, detail=str(e))
-
-    if not phone:
-        raise HTTPException(status_code=404, detail="Lusha no devolvió número para este contacto")
-
-    async with get_conn() as conn:
-        await conn.execute(
-            "UPDATE lu_contacts SET phone = ?, phone_revealed = 1 WHERE id = ?",
-            (phone, row["contact_id"]),
+        result = await reveal_contact(
+            contact_id=row["contact_id"],
+            linkedin_url=None,
+            full_name=row["contact_name"],
+            company_name=row["company_name"],
         )
-        await conn.commit()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
 
-    return {"phone": phone, "already_revealed": False}
+    return {
+        "phone": result["phone"],
+        "email": result.get("email"),
+        "already_revealed": result["cached"],
+    }
 
 
 @router.post("/{assignment_id}/generate-report")

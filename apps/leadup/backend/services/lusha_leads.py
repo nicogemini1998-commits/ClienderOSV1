@@ -7,7 +7,7 @@ from config import get_settings
 logger = logging.getLogger(__name__)
 
 # ── Flip to False when ready to use real Lusha credits ──────────────────────
-MOCK_MODE = True
+MOCK_MODE = False
 
 LUSHA_BASE = "https://api.lusha.com"
 SEARCH_URL = f"{LUSHA_BASE}/v2/prospecting/contact/search"

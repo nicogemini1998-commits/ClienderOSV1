@@ -7,13 +7,12 @@ from functools import lru_cache
 class Settings(BaseSettings):
     model_config = ConfigDict(extra="ignore", env_file=".env", env_file_encoding="utf-8")
 
-    # JWT
-    jwt_secret: str = "leadup_secret_jwt_2024_cambia_esto"
+    # JWT — requerido, sin default inseguro
+    jwt_secret: str
     jwt_expiry_hours: int = 8
     jwt_algorithm: str = "HS256"
 
     # APIs
-    apollo_api_key: str = ""
     anthropic_api_key: str = ""
     apify_api_key: str = ""
     lusha_api_key: str = ""
@@ -35,6 +34,14 @@ class Settings(BaseSettings):
     gmaps_enabled: bool = True
     gmaps_results_per_search: int = 20
     gmaps_rate_limit_ms: int = 2500
+
+    # Email (SMTP) para notificaciones
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = "noreply@cliender.com"
+    low_leads_threshold: int = 2
 
 
 @lru_cache()

@@ -51,3 +51,8 @@ temp/
 htmlcov/
 .coverage
 apps/studio/
+
+# Local backups (do not commit)
+.backups/
+*.bak
+*.bak-*

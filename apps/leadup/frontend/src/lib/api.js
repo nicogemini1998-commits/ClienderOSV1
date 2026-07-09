@@ -44,6 +44,7 @@ export const authApi = {
 // Leads
 export const leadsApi = {
   getToday: () => api.get('/leads/today'),
+  getWeekPipeline: () => api.get('/leads/week-pipeline'),
   updateStatus: (assignmentId, status, notes) =>
     api.patch(`/leads/${assignmentId}/status`, { status, notes }),
   updateFollowup: (assignmentId, followUpDate) =>
@@ -87,8 +88,8 @@ export const remindersApi = {
 
 // Admin
 export const adminApi = {
-  assignNow: (userId = null, count = 20) =>
-    api.post('/admin/assign-now', { user_id: userId, count }),
+  assignNow: (userId = null, count = 20, industry = null) =>
+    api.post('/admin/assign-now', { user_id: userId, count, ...(industry ? { industry } : {}) }),
   getAnalytics: () => api.get('/admin/analytics'),
   toggleLeadSearch: (userId, enabled) =>
     api.patch('/admin/lead-search-toggle', { user_id: userId, enabled }),
@@ -98,6 +99,14 @@ export const adminApi = {
   lushaLoad: () => api.post('/admin/lusha-load'),
   getUnassignedLeads: () => api.get('/admin/unassigned-leads'),
   assignBulk: (assignments) => api.post('/admin/assign-bulk', { assignments }),
+  getPendingByNiche: () => api.get('/admin/pending-by-niche'),
+  exportNotes: () => api.get('/admin/export-notes', { responseType: 'blob' }),
+  renameNiche: (oldName, newName) => api.patch('/admin/rename-niche', { old: oldName, new: newName }),
+}
+
+// Companies
+export const companiesApi = {
+  sectorAnalysis: (companyId) => api.post(`/companies/${companyId}/sector-analysis`),
 }
 
 // Import Leads
@@ -109,6 +118,6 @@ export const importApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
-  validate: (data) => api.post('/admin/import/validate', data),
-  assign: (payload) => api.post('/admin/import/assign', payload),
+  validate: (data) => api.post('/admin/import/validate', data, { timeout: 60000 }),
+  assign: (payload) => api.post('/admin/import/assign', payload, { timeout: 120000 }),
 }

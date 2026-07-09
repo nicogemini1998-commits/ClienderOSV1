@@ -67,10 +67,7 @@ export default function UnassignedLeadsPanel({ users }) {
     }
   }
 
-  if (loading) return <div className="text-slate-500">Cargando...</div>
-  if (!data || data.total_unassigned === 0) {
-    return <div className="text-slate-500 text-sm">Todos los leads están asignados ✓</div>
-  }
+  if (loading || !data || data.total_unassigned === 0) return null
 
   return (
     <div className="card p-5 bg-gradient-to-br from-surface-card to-surface border-surface-border/60 shadow-lg">

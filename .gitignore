@@ -56,3 +56,4 @@ apps/studio/
 .backups/
 *.bak
 *.bak-*
+.mcp.json

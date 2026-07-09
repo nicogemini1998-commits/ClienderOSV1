@@ -11,9 +11,9 @@
   --color-surface-card: 28 34 50;
   --color-surface-border: 42 51 71;
   --color-surface-hover: 34 40 64;
-  --color-accent: 79 142 247;
-  --color-accent-light: 122 174 255;
-  --color-accent-dark: 45 109 212;
+  --color-accent: 124 58 237;
+  --color-accent-light: 167 139 250;
+  --color-accent-dark: 109 40 217;
 
   --text-primary: #e2e8f0;
   --text-secondary: #94a3b8;
@@ -32,9 +32,9 @@
   --color-surface-card: 255 255 255;
   --color-surface-border: 210 220 238;
   --color-surface-hover: 226 232 248;
-  --color-accent: 37 99 235;
-  --color-accent-light: 59 130 246;
-  --color-accent-dark: 29 78 216;
+  --color-accent: 109 40 217;
+  --color-accent-light: 124 58 237;
+  --color-accent-dark: 91 33 182;
 
   --text-primary: #0f172a;
   --text-secondary: #334155;

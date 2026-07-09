@@ -18,7 +18,8 @@ const STATUS_COLORS = {
   no_answer:  'text-slate-400',
   call_later: 'text-blue-400',
   closed:     'text-emerald-400',
-  rejected:   'text-red-400',
+  rejected:     'text-red-400',
+  wrong_number:  'text-orange-400',
 }
 
 const COLUMNS = [
@@ -66,6 +67,15 @@ const COLUMNS = [
     bg: 'bg-red-400/5',
     dot: 'bg-red-400',
     count_bg: 'bg-red-400/20 text-red-300',
+  },
+  {
+    id: 'wrong_number',
+    label: 'Nº Erróneo',
+    color: 'text-orange-400',
+    border: 'border-orange-400/30',
+    bg: 'bg-orange-400/5',
+    dot: 'bg-orange-400',
+    count_bg: 'bg-orange-400/20 text-orange-300',
   },
 ]
 
@@ -121,8 +131,8 @@ function MiniCard({ lead, onClick, onStatusChange }) {
           <span className="text-[11px] text-slate-600 italic">Sin teléfono</span>
         )}
 
-        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${STATUS_COLORS[status]} bg-${status === 'closed' ? 'emerald' : status === 'rejected' ? 'red' : status === 'call_later' ? 'blue' : 'slate'}-400/10`}>
-          {status === 'pending' ? '○' : status === 'no_answer' ? '✗' : status === 'call_later' ? '⏱' : status === 'closed' ? '✓' : '✕'}
+        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${STATUS_COLORS[status] || 'text-slate-400'} bg-current/10`}>
+          {status === 'pending' ? '○' : status === 'no_answer' ? '✗' : status === 'call_later' ? '⏱' : status === 'closed' ? '✓' : status === 'wrong_number' ? '☎️' : '✕'}
         </span>
       </div>
     </div>
@@ -139,7 +149,7 @@ export default function Pipeline() {
   const fetchLeads = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await leadsApi.getToday()
+      const res = await leadsApi.getWeekPipeline()
       setLeads(res.data.leads)
     } catch (_) {
       // show empty state

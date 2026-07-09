@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'motion/react'
 import StatusBar from './StatusBar'
 import RemindersList from './RemindersList'
 import CallNoteSheet from './CallNoteSheet'
-import { notesApi, contactsApi, leadsApi } from '../lib/api'
+import { notesApi, contactsApi, leadsApi, companiesApi } from '../lib/api'
 import { toast } from '../lib/toast'
 import { useReminders } from '../hooks/useReminders'
 import { useCallLogs } from '../hooks/useCallLogs'
@@ -31,6 +32,12 @@ function EyeIcon() {
   )
 }
 
+const OPP_CONFIG = {
+  alta:  { label: 'Alta',  color: '#10b981', bg: 'rgba(16,185,129,0.08)',  border: 'rgba(16,185,129,0.25)', glow: 'rgba(16,185,129,0.15)' },
+  media: { label: 'Media', color: '#f59e0b', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.25)', glow: 'rgba(245,158,11,0.12)' },
+  baja:  { label: 'Baja',  color: '#ef4444', bg: 'rgba(239,68,68,0.08)',  border: 'rgba(239,68,68,0.25)', glow: 'rgba(239,68,68,0.12)' },
+}
+
 const OPP_STYLES = {
   alta:  'text-emerald-400 bg-emerald-400/10 border-emerald-400/30',
   media: 'text-amber-400  bg-amber-400/10  border-amber-400/30',
@@ -43,20 +50,17 @@ function scoreColor(s) {
   return 'text-red-400'
 }
 
-function SectionLabel({ children, action }) {
+function SectionLabel({ children, action, color }) {
+  const c = color || 'var(--color-accent, #7c3aed)'
   return (
-    <div className="flex items-center gap-4 mb-6">
+    <div className="flex items-center gap-4 mb-5">
       <div className="flex items-center gap-3 flex-1">
-        <div className="w-1 h-6 bg-gradient-to-b from-accent to-accent/40 rounded-full" />
-        <span className="text-sm font-bold text-white uppercase tracking-wider">
+        <div className="w-0.5 h-5 rounded-full" style={{ background: `linear-gradient(to bottom, ${c}, transparent)` }} />
+        <span className="text-xs font-black text-white uppercase tracking-widest">
           {children}
         </span>
       </div>
-      {action && (
-        <div className="flex-shrink-0">
-          {action}
-        </div>
-      )}
+      {action && <div className="flex-shrink-0">{action}</div>}
     </div>
   )
 }
@@ -294,6 +298,12 @@ export default function CompanyModal({ lead, onClose, onStatusChange, onContactC
   const [reportError, setReportError] = useState(null)
   const [reportCached, setReportCached] = useState(false)
 
+  const [sectorOpen, setSectorOpen] = useState(false)
+  const [sectorData, setSectorData] = useState(null)
+  const [analysisOpen, setAnalysisOpen] = useState(false)
+  const [sectorLoading, setSectorLoading] = useState(false)
+  const [sectorError, setSectorError] = useState(null)
+
   // ── Hooks: Reminders ──────────────────────────────────────────────────────
   const {
     reminders,
@@ -386,6 +396,21 @@ export default function CompanyModal({ lead, onClose, onStatusChange, onContactC
       toast.error('Error al generar informe', msg)
     } finally {
       setReportLoading(false)
+    }
+  }
+
+  const handleSectorAnalysis = async () => {
+    if (sectorLoading) return
+    setSectorLoading(true)
+    setSectorError(null)
+    try {
+      const res = await companiesApi.sectorAnalysis(company.id)
+      setSectorData(res.data?.data || res.data)
+    } catch (err) {
+      const msg = err.response?.data?.detail || 'Análisis no disponible. Inténtalo en unos minutos.'
+      setSectorError(msg)
+    } finally {
+      setSectorLoading(false)
     }
   }
 
@@ -493,6 +518,7 @@ export default function CompanyModal({ lead, onClose, onStatusChange, onContactC
   const prefix = contact?.phone_prefix || ''
   const isMobile = isMobilePrefix(prefix)
   const oppStyle = OPP_STYLES[company.opportunity_level] || OPP_STYLES.media
+  const opp = OPP_CONFIG[company.opportunity_level] || OPP_CONFIG.media
   const { sales, tech, content } = buildOpportunities(company)
 
   return (
@@ -500,12 +526,34 @@ export default function CompanyModal({ lead, onClose, onStatusChange, onContactC
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in p-4"
     >
-      <div className="relative bg-gradient-to-br from-surface-raised to-surface border border-surface-border rounded-2xl w-full max-w-2xl max-h-[92vh] flex flex-col animate-slide-up overflow-hidden shadow-[0_20px_48px_-12px_rgba(0,0,0,0.5)]">
+      <div
+        className="relative bg-gradient-to-br from-surface-raised to-surface rounded-2xl w-full max-w-2xl max-h-[92vh] flex flex-col animate-slide-up overflow-hidden"
+        style={{
+          border: `1px solid rgb(var(--color-surface-border))`,
+          borderLeft: `3px solid ${opp.color}`,
+          boxShadow: `0 20px 48px -12px rgba(0,0,0,0.6), -4px 0 24px -6px ${opp.color}50`,
+        }}
+      >
+
+        {/* Top opp glow line */}
+        <div className="absolute top-0 left-0 right-0 h-px pointer-events-none z-10"
+          style={{ background: `linear-gradient(90deg, ${opp.color}cc 0%, ${opp.color}40 40%, transparent 100%)` }} />
 
         {/* ── HEADER ── */}
-        <div className="flex items-start justify-between p-8 pb-5 border-b border-surface-border/60 bg-gradient-to-r from-surface-raised/40 to-transparent">
+        <div
+          className="flex items-start justify-between p-4 sm:p-8 pb-5 border-b border-surface-border/60"
+          style={{ background: `linear-gradient(135deg, ${opp.glow} 0%, rgba(var(--color-surface-raised)/0.4) 40%, transparent 100%)` }}
+        >
           <div className="min-w-0 flex-1 flex items-start gap-4">
-            <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${AVATAR_COLORS[company.name.charCodeAt(0) % AVATAR_COLORS.length]} flex items-center justify-center flex-shrink-0 font-bold text-white text-lg shadow-[0_4px_12px_-2px_rgba(0,0,0,0.3)]`}>
+            <div
+              className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 font-bold text-white text-lg"
+              style={{
+                background: `linear-gradient(135deg, ${opp.color}30, ${opp.color}15)`,
+                border: `1.5px solid ${opp.border}`,
+                boxShadow: `0 4px 12px -2px ${opp.color}30`,
+                color: opp.color,
+              }}
+            >
               {company.name.charAt(0).toUpperCase()}
             </div>
 
@@ -561,17 +609,51 @@ export default function CompanyModal({ lead, onClose, onStatusChange, onContactC
         </div>
 
         {/* Opportunity strip */}
-        <div className="flex items-center gap-3 px-6 py-4 border-b border-surface-border/50 bg-gradient-to-r from-surface-card/60 to-surface-card/20">
-          <span className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold border shadow-[0_2px_6px_-1px_rgba(0,0,0,0.2)] ${oppStyle}`}>
-            ✨ Oportunidad {company.opportunity_level}
-          </span>
+        <div
+          style={{
+            background: `linear-gradient(90deg, ${opp.bg} 0%, transparent 80%)`,
+            borderBottomColor: `${opp.border}`,
+          }}
+          className="border-b"
+        >
+          {/* Header row — always visible */}
+          <div className="flex items-center gap-3 px-4 sm:px-6 py-3">
+            <span
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold flex-shrink-0"
+              style={{
+                color: opp.color,
+                background: opp.bg,
+                border: `1.5px solid ${opp.border}`,
+                boxShadow: `0 0 10px -2px ${opp.color}40`,
+              }}
+            >
+              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: opp.color, boxShadow: `0 0 5px ${opp.color}` }} />
+              Oportunidad {opp.label}
+            </span>
+            {company.opportunity_analysis && (
+              <button
+                type="button"
+                onClick={() => setAnalysisOpen(v => !v)}
+                className="ml-auto flex-shrink-0 w-6 h-6 flex items-center justify-center rounded text-slate-400 hover:text-white transition-colors"
+                aria-label={analysisOpen ? 'Ocultar análisis' : 'Ver análisis'}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={`w-3.5 h-3.5 transition-transform duration-200 ${analysisOpen ? 'rotate-180' : ''}`}>
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </button>
+            )}
+          </div>
+          {/* Collapsible analysis */}
           {company.opportunity_analysis && (
-            <p className="text-xs text-slate-300">{company.opportunity_analysis}</p>
+            <div className={`overflow-hidden transition-all duration-300 ease-in-out ${analysisOpen ? 'max-h-48 opacity-100' : 'max-h-0 opacity-0'}`}>
+              <p className="text-xs text-slate-300 leading-relaxed px-4 sm:px-6 pb-3">{company.opportunity_analysis}</p>
+            </div>
           )}
         </div>
 
+
         {/* ── BODY scrollable ── */}
-        <div className="flex-1 overflow-y-auto p-8 space-y-7">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-7">
 
           {/* DECISION MAKERS */}
           <section>
@@ -588,7 +670,7 @@ export default function CompanyModal({ lead, onClose, onStatusChange, onContactC
                 ) : null
               }
             >
-              Decision Makers
+              Decisor Clave
             </SectionLabel>
 
             {contact ? (
@@ -1034,6 +1116,207 @@ export default function CompanyModal({ lead, onClose, onStatusChange, onContactC
                 </div>
               </div>
             )}
+          </section>
+
+          {/* INTELIGENCIA DEL SECTOR */}
+          <section>
+            <button
+              onClick={() => setSectorOpen(o => !o)}
+              className="w-full flex items-center gap-4 mb-0 group"
+              aria-expanded={sectorOpen}
+            >
+              <div className="flex items-center gap-3 flex-1">
+                <div className="w-1 h-6 bg-gradient-to-b from-violet-400 to-violet-400/40 rounded-full" />
+                <span className="text-sm font-bold text-white uppercase tracking-wider">
+                  Inteligencia del Sector
+                </span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-400/10 border border-violet-400/20 text-violet-300 font-semibold">
+                  CI-OS
+                </span>
+              </div>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${sectorOpen ? 'rotate-180' : ''}`}
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+
+            <AnimatePresence initial={false}>
+              {sectorOpen && (
+                <motion.div
+                  key="sector-panel"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                  className="overflow-hidden"
+                >
+                  <div className="mt-4">
+                    {!sectorData && !sectorLoading && (
+                      <div className="bg-gradient-to-br from-surface-card to-surface border border-violet-500/20 rounded-xl p-5 text-center shadow-[0_4px_12px_-2px_rgba(0,0,0,0.2)]">
+                        <div className="text-2xl mb-2">🔭</div>
+                        <p className="text-sm text-slate-400 mb-1">Análisis competitivo del sector</p>
+                        <p className="text-xs text-slate-600 mb-4">
+                          Competidores detectados, gaps de mercado y recomendaciones de servicios Cliender
+                        </p>
+                        {sectorError && (
+                          <p className="text-xs text-red-400 mb-3">{sectorError}</p>
+                        )}
+                        <button
+                          onClick={handleSectorAnalysis}
+                          disabled={sectorLoading}
+                          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/25 text-violet-300 font-semibold text-sm transition-all shadow-[0_4px_12px_-2px_rgba(139,92,246,0.2)] hover:shadow-[0_6px_16px_-2px_rgba(139,92,246,0.3)]"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                            <circle cx="11" cy="11" r="8" />
+                            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                          </svg>
+                          Analizar sector con IA
+                        </button>
+                      </div>
+                    )}
+
+                    {sectorLoading && (
+                      <div className="bg-gradient-to-br from-surface-card to-surface border border-violet-500/20 rounded-xl p-6 flex flex-col items-center gap-3 shadow-[0_4px_12px_-2px_rgba(0,0,0,0.2)]">
+                        <div className="w-6 h-6 border-2 border-violet-400 border-t-transparent rounded-full animate-spin" />
+                        <p className="text-sm text-slate-400">Analizando competidores...</p>
+                        <p className="text-xs text-slate-600">Esto puede tardar unos segundos</p>
+                      </div>
+                    )}
+
+                    {sectorData && !sectorLoading && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                        className="space-y-4"
+                      >
+                        {/* Competidores detectados */}
+                        {sectorData.competitors?.length > 0 && (
+                          <div className="bg-gradient-to-br from-surface-card to-surface border border-surface-border/60 rounded-xl overflow-hidden shadow-[0_4px_12px_-2px_rgba(0,0,0,0.2)]">
+                            <div className="px-4 py-3 border-b border-surface-border/50 bg-surface-raised/40">
+                              <span className="text-xs font-black text-slate-300 uppercase tracking-wider">
+                                🏢 Competidores detectados
+                              </span>
+                            </div>
+                            <div className="divide-y divide-surface-border/40">
+                              {sectorData.competitors.map((comp, i) => (
+                                <div key={i} className="flex items-center justify-between px-4 py-3 hover:bg-surface-hover/20 transition-colors">
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-semibold text-white truncate">{comp.name}</p>
+                                    {comp.website && (
+                                      <a
+                                        href={comp.website.startsWith('http') ? comp.website : `https://${comp.website}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="text-[11px] text-accent/70 hover:text-accent hover:underline truncate block"
+                                      >
+                                        {comp.website.replace(/^https?:\/\//, '')}
+                                      </a>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+                                    {comp.digitalScore !== undefined && (
+                                      <span className={`text-xs font-bold ${comp.digitalScore >= 65 ? 'text-emerald-400' : comp.digitalScore >= 35 ? 'text-amber-400' : 'text-red-400'}`}>
+                                        {comp.digitalScore}/100
+                                      </span>
+                                    )}
+                                    {comp.hasAds !== undefined && (
+                                      <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                                        comp.hasAds
+                                          ? 'text-amber-400 bg-amber-400/10 border-amber-400/30'
+                                          : 'text-slate-500 bg-surface-card border-surface-border'
+                                      }`}>
+                                        <span className={`w-1.5 h-1.5 rounded-full ${comp.hasAds ? 'bg-amber-400' : 'bg-slate-600'}`} />
+                                        {comp.hasAds ? 'Ads activos' : 'Sin ads'}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Oportunidades del sector */}
+                        {sectorData.opportunities?.length > 0 && (
+                          <div className="bg-gradient-to-br from-surface-card to-surface border border-emerald-500/20 rounded-xl overflow-hidden shadow-[0_4px_12px_-2px_rgba(0,0,0,0.2)]">
+                            <div className="px-4 py-3 border-b border-emerald-500/20 bg-emerald-500/5">
+                              <span className="text-xs font-black text-emerald-300 uppercase tracking-wider">
+                                ✨ Oportunidades del sector
+                              </span>
+                            </div>
+                            <ul className="p-4 space-y-2">
+                              {sectorData.opportunities.map((opp, i) => (
+                                <li key={i} className="flex gap-2 text-sm text-slate-300 leading-relaxed">
+                                  <span className="text-emerald-400 mt-0.5 flex-shrink-0">›</span>
+                                  <span>{opp}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* Recomendaciones Cliender */}
+                        {sectorData.recommendations?.length > 0 && (
+                          <div className="bg-gradient-to-br from-surface-card to-surface border border-accent/20 rounded-xl overflow-hidden shadow-[0_4px_12px_-2px_rgba(0,0,0,0.2)]">
+                            <div className="px-4 py-3 border-b border-accent/20 bg-accent/5">
+                              <span className="text-xs font-black text-accent uppercase tracking-wider">
+                                💡 Recomendaciones Cliender
+                              </span>
+                            </div>
+                            <ul className="p-4 space-y-2">
+                              {sectorData.recommendations.map((rec, i) => {
+                                const serviceTag = rec.service
+                                  ? (
+                                    <span className={`inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded mr-1.5 ${
+                                      rec.service === 'SALES'
+                                        ? 'bg-blue-400/10 text-blue-300 border border-blue-400/20'
+                                        : rec.service === 'MEDIA'
+                                        ? 'bg-purple-400/10 text-purple-300 border border-purple-400/20'
+                                        : 'bg-orange-400/10 text-orange-300 border border-orange-400/20'
+                                    }`}>{rec.service}</span>
+                                  ) : null
+                                const text = typeof rec === 'string' ? rec : rec.text
+                                return (
+                                  <li key={i} className="flex gap-2 text-sm text-slate-300 leading-relaxed">
+                                    <span className="text-accent mt-0.5 flex-shrink-0">›</span>
+                                    <span>{serviceTag}{text}</span>
+                                  </li>
+                                )
+                              })}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* Fallback: raw text if CI-OS returns a different shape */}
+                        {!sectorData.competitors && !sectorData.opportunities && !sectorData.recommendations && (
+                          <div className="bg-gradient-to-br from-surface-card to-surface border border-surface-border/60 rounded-xl p-5 shadow-[0_4px_12px_-2px_rgba(0,0,0,0.2)]">
+                            <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">
+                              {typeof sectorData === 'string' ? sectorData : JSON.stringify(sectorData, null, 2)}
+                            </p>
+                          </div>
+                        )}
+
+                        <div className="flex justify-end">
+                          <button
+                            onClick={() => { setSectorData(null); setSectorError(null) }}
+                            className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                          >
+                            Volver a analizar →
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </section>
 
           {/* NOTAS DEL COMERCIAL */}

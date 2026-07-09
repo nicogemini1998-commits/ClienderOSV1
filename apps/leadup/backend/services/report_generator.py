@@ -5,7 +5,7 @@ from config import get_settings
 logger = logging.getLogger(__name__)
 
 # ── Flip to False when ready to use real Claude credits ─────────────────────
-MOCK_MODE = True
+MOCK_MODE = False
 
 # ---------------------------------------------------------------------------
 
@@ -140,6 +140,8 @@ Arrancar con el número concreto: *"En empresas como la vuestra con un score dig
 async def _claude_report(company: dict, contact: dict | None) -> str:
     import anthropic
     settings = get_settings()
+    if not settings.anthropic_api_key:
+        raise ValueError("ANTHROPIC_API_KEY no configurada — contacta con el administrador")
 
     contact_info = ""
     if contact:

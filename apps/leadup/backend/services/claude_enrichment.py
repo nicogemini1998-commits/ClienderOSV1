@@ -18,7 +18,7 @@ from config import get_settings
 logger = logging.getLogger(__name__)
 
 _CACHE_DAYS = 30
-MOCK_MODE = True  # Flip to False when ANTHROPIC_API_KEY is valid
+MOCK_MODE = False  # Claude Haiku activo
 
 _client: anthropic.AsyncAnthropic | None = None
 

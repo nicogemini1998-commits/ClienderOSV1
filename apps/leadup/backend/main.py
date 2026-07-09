@@ -28,45 +28,74 @@ settings = get_settings()
 limiter = Limiter(key_func=get_remote_address)
 
 
+async def _run_migrations() -> None:
+    from database import get_conn
+    try:
+        async with get_conn() as conn:
+            await conn.execute(
+                "ALTER TABLE lu_companies ADD COLUMN IF NOT EXISTS sales_report TEXT"
+            )
+            await conn.execute(
+                "ALTER TABLE lu_companies ADD COLUMN IF NOT EXISTS report_generated_at TIMESTAMPTZ"
+            )
+        logger.info("Migrations: schema up to date")
+    except Exception as exc:
+        logger.warning("Migrations skipped: %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("LeadUp API starting up...")
     await init_pool()
+    await _run_migrations()
     scheduler = get_scheduler()
     scheduler.start()
-    logger.info(f"Scheduler started — daily job at {settings.scheduler_hour:02d}:{settings.scheduler_minute:02d} Madrid time")
+    logger.info("Scheduler started — manual assignment only, no automatic jobs")
     yield
     # Shutdown
     logger.info("LeadUp API shutting down...")
     scheduler.shutdown(wait=False)
+    try:
+        from services.langfuse_obs import flush as _lf_flush
+        _lf_flush()
+    except Exception:
+        pass
     await close_pool()
 
+
+_is_dev = settings.environment == "development"
 
 app = FastAPI(
     title="LeadUp API",
     description="CRM de prospección B2B para Cliender",
     version="1.0.0",
     lifespan=lifespan,
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url="/docs" if _is_dev else None,
+    redoc_url="/redoc" if _is_dev else None,
+    openapi_url="/openapi.json" if _is_dev else None,
 )
 
 # Rate limiting
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# CORS — allow frontend dev server and production origin
+# CORS — orígenes explícitos, métodos restringidos
+_cors_origins = list({
+    settings.frontend_url,
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://localhost:5174",
+    settings.frontend_url.replace("localhost", "127.0.0.1"),
+})
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        settings.frontend_url,
-        "http://localhost:3000",
-        settings.frontend_url.replace("localhost", "127.0.0.1"),
-    ],
+    allow_origins=_cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
+    expose_headers=["X-Request-ID"],
 )
 
 # Routers (register before static files to avoid conflicts)

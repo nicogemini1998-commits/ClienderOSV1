@@ -9,6 +9,7 @@ const STATUS_TABS = [
   { id: 'all', label: 'Todos' },
   { id: 'pending', label: 'Pendiente' },
   { id: 'no_answer', label: 'Sin respuesta' },
+  { id: 'call_later', label: 'Llamar luego' },
   { id: 'closed', label: 'Cerrado' },
   { id: 'rejected', label: 'Rechazado' },
 ]
@@ -27,11 +28,10 @@ export default function Dashboard() {
     setLoading(true)
     setError(null)
     try {
-      const res = await leadsApi.getToday()
+      const res = await leadsApi.getWeekPipeline()
       setLeads(res.data.leads)
-      setDate(res.data.date)
     } catch (err) {
-      setError('Error al cargar los leads de hoy. Comprueba la conexión con el servidor.')
+      setError('Error al cargar los leads. Comprueba la conexión con el servidor.')
     } finally {
       setLoading(false)
     }
@@ -98,14 +98,8 @@ export default function Dashboard() {
         {/* Page header */}
         <div className="flex items-start justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-white">Cola del día</h1>
-            {date && (
-              <p className="text-sm text-slate-400 mt-0.5">
-                {new Date(date + 'T00:00:00').toLocaleDateString('es-ES', {
-                  weekday: 'long', day: 'numeric', month: 'long',
-                })}
-              </p>
-            )}
+            <h1 className="text-2xl font-bold text-white">Mis leads</h1>
+            <p className="text-sm text-slate-400 mt-0.5">Semana actual — todos tus leads asignados</p>
           </div>
 
           {/* Quick stats */}

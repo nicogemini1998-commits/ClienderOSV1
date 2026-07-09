@@ -63,13 +63,13 @@ def _row_to_dict(row) -> dict:
 async def _ensure_table(conn) -> None:
     await conn.execute("""
         CREATE TABLE IF NOT EXISTS lu_reminders (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            id            SERIAL PRIMARY KEY,
             assignment_id INTEGER NOT NULL REFERENCES lu_daily_assignments(id) ON DELETE CASCADE,
             text          TEXT    NOT NULL,
             due_at        TEXT,
             done          INTEGER NOT NULL DEFAULT 0,
             position      INTEGER NOT NULL DEFAULT 0,
-            created_at    TEXT    DEFAULT (datetime('now'))
+            created_at    TIMESTAMPTZ DEFAULT NOW()
         )
     """)
     await conn.execute(

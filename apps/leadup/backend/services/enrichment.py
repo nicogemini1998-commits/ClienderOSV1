@@ -11,6 +11,7 @@ from typing import Any
 import anthropic
 
 from config import get_settings
+from services.langfuse_obs import track_anthropic_call
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -81,10 +82,23 @@ async def enrich_company(company: dict[str, Any]) -> dict[str, Any]:
     )
 
     try:
+        messages = [{"role": "user", "content": prompt}]
         response = await client.messages.create(
             model="claude-haiku-4-5",
             max_tokens=1024,
-            messages=[{"role": "user", "content": prompt}],
+            messages=messages,
+        )
+
+        track_anthropic_call(
+            name="leadup.enrich_company",
+            model="claude-haiku-4-5",
+            messages=messages,
+            response=response,
+            metadata={
+                "company_name": company.get("name", ""),
+                "city": company.get("city", ""),
+                "industry": company.get("industry", ""),
+            },
         )
 
         raw = response.content[0].text.strip()

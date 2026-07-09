@@ -11,6 +11,7 @@ from auth import get_current_user, require_admin
 from database import get_conn
 from services.scheduler import trigger_manual_assignment, assign_leads_for_user
 from services.enrichment import enrich_company
+from services.langfuse_obs import track_anthropic_call
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -28,6 +29,7 @@ class LeadSearchToggle(BaseModel):
 class AssignNowRequest(BaseModel):
     user_id: Optional[int] = None
     count: int = 20
+    industry: Optional[str] = None
 
 
 @router.post("/assign-now")
@@ -46,14 +48,11 @@ async def assign_now(
         if not user:
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
-        background_tasks.add_task(
-            assign_leads_for_user, body.user_id, str(date.today()), body.count
-        )
-        return {"message": f"Asignación iniciada para {user['name']}", "user_id": body.user_id}
+        assigned = await assign_leads_for_user(body.user_id, str(date.today()), body.count, body.industry)
+        return {"message": f"Asignados {assigned} leads a {user['name']}", "user_id": body.user_id, "assigned": assigned}
 
     background_tasks.add_task(trigger_manual_assignment)
     return {"message": "Asignación masiva iniciada para todos los usuarios activos"}
-
 
 class UserSettingsRequest(BaseModel):
     leads_per_day: int = 20
@@ -127,6 +126,7 @@ async def get_analytics(
                 COUNT(CASE WHEN da.status = 'rejected' THEN 1 END) AS rejected,
                 COUNT(CASE WHEN da.status = 'pending' THEN 1 END) AS pending,
                 COUNT(CASE WHEN da.status = 'call_later' THEN 1 END) AS call_later,
+                COUNT(CASE WHEN da.status = 'wrong_number' THEN 1 END) AS wrong_number,
                 COUNT(CASE WHEN da.assigned_date = ? THEN 1 END) AS today_count,
                 COUNT(CASE WHEN da.status = 'closed' AND da.assigned_date::date >= CURRENT_DATE - INTERVAL '7 days' AND da.assigned_date::date < CURRENT_DATE THEN 1 END) AS week_closed
             FROM lu_users u
@@ -313,13 +313,20 @@ async def trigger_enrichment(
                     await conn.execute(
                         """
                         UPDATE lu_companies SET
-                            digital_score = ?,
-                            opportunity_level = ?,
-                            redes_sociales = ?,
-                            captacion_leads = ?,
-                            email_marketing = ?,
-                            video_contenido = ?,
-                            seo_info = ?,
+                            digital_score = CASE WHEN COALESCE(digital_score, 0) > 0
+                                            THEN digital_score ELSE ? END,
+                            opportunity_level = CASE WHEN COALESCE(digital_score, 0) > 0
+                                                THEN opportunity_level ELSE ? END,
+                            redes_sociales = CASE WHEN COALESCE(digital_score, 0) > 0
+                                             THEN redes_sociales ELSE ? END,
+                            captacion_leads = CASE WHEN COALESCE(digital_score, 0) > 0
+                                              THEN captacion_leads ELSE ? END,
+                            email_marketing = CASE WHEN COALESCE(digital_score, 0) > 0
+                                              THEN email_marketing ELSE ? END,
+                            video_contenido = CASE WHEN COALESCE(digital_score, 0) > 0
+                                              THEN video_contenido ELSE ? END,
+                            seo_info = CASE WHEN COALESCE(digital_score, 0) > 0
+                                       THEN seo_info ELSE ? END,
                             hooks = ?,
                             opening_lines = ?,
                             opportunity_analysis = ?
@@ -904,10 +911,17 @@ Identifica entre 3 y 6 puntos de fracaso distintos. Sé específico, actionable 
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
 
     try:
+        _msgs = [{"role": "user", "content": prompt}]
         message = client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=1024,
-            messages=[{"role": "user", "content": prompt}],
+            messages=_msgs,
+        )
+        track_anthropic_call(
+            name="leadup.admin.rejection_analysis",
+            model="claude-haiku-4-5-20251001",
+            messages=_msgs,
+            response=message,
         )
         content = message.content[0].text
         start = content.find('{')
@@ -923,3 +937,244 @@ Identifica entre 3 y 6 puntos de fracaso distintos. Sé específico, actionable 
     result = {**data, "total_feedback": len(feedbacks)}
     _rejection_cache[cache_key] = (now, result)
     return result
+
+
+@router.get("/pending-by-niche")
+async def get_pending_by_niche(
+    current_user: dict = Depends(require_admin),
+):
+    """Empresas sin asignar a nadie, agrupadas por nicho."""
+    async with get_conn() as conn:
+        rows = await (await conn.execute(
+            """
+            SELECT
+                COALESCE(NULLIF(TRIM(c.industry), ''), 'Sin nicho') AS industry,
+                COUNT(*) AS available
+            FROM lu_companies c
+            WHERE c.id NOT IN (SELECT company_id FROM lu_daily_assignments)
+            GROUP BY COALESCE(NULLIF(TRIM(c.industry), ''), 'Sin nicho')
+            ORDER BY available DESC
+            """
+        )).fetchall()
+
+    niches = [
+        {"industry": r["industry"], "total_pending": r["available"]}
+        for r in rows
+        if r["available"] > 0
+    ]
+
+    return {"niches": niches}
+
+
+class RenameNicheRequest(BaseModel):
+    old: str
+    new: str
+
+
+@router.patch("/rename-niche")
+async def rename_niche(
+    request: RenameNicheRequest,
+    current_user: dict = Depends(require_admin),
+):
+    """Renombra todas las empresas con industry=old a industry=new (case-insensitive, trim)."""
+    old = (request.old or "").strip()
+    new = (request.new or "").strip()
+    if not old or not new:
+        raise HTTPException(status_code=400, detail="old y new son obligatorios")
+    if old.lower() == new.lower():
+        return {"success": True, "updated": 0, "old": old, "new": new}
+
+    async with get_conn() as conn:
+        # Acceso directo a asyncpg para obtener rowcount real.
+        raw = conn._conn  # type: ignore[attr-defined]
+        # Caso especial: el grupo 'Sin nicho' agrupa companies con industry NULL/vacío.
+        if old.lower() == 'sin nicho':
+            status = await raw.execute(
+                "UPDATE lu_companies SET industry = $1 WHERE industry IS NULL OR TRIM(industry) = ''",
+                new,
+            )
+        else:
+            status = await raw.execute(
+                "UPDATE lu_companies SET industry = $1 WHERE LOWER(TRIM(industry)) = LOWER($2)",
+                new, old,
+            )
+        # asyncpg devuelve "UPDATE N"
+        try:
+            updated = int(status.split()[-1])
+        except Exception:
+            updated = 0
+        logger.info(f"rename-niche: {old!r} -> {new!r} ({updated} rows)")
+
+    return {"success": True, "updated": updated, "old": old, "new": new}
+
+
+# ── Exportar notas a Excel ─────────────────────────────────────────────────────
+
+@router.get("/export-notes")
+async def export_notes(
+    current_user: dict = Depends(require_admin),
+):
+    """Export all assignments with company info, contact, notes and reminders as Excel."""
+    from io import BytesIO
+    from fastapi.responses import StreamingResponse
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    STATUS_LABELS = {
+        "pending":    "Pendiente",
+        "no_answer":  "Sin respuesta",
+        "call_later": "Llamar luego",
+        "closed":     "Agendado",
+        "rejected":   "Rechazado",
+    }
+
+    async with get_conn() as conn:
+        cursor = await conn.execute(
+            """
+            SELECT
+                da.id              AS assignment_id,
+                da.assigned_date,
+                da.status,
+                da.notes,
+                da.follow_up_date,
+                da.rejection_feedback,
+                u.name             AS comercial,
+                c.name             AS empresa,
+                c.city,
+                c.industry         AS sector,
+                c.website,
+                c.phone            AS empresa_tel,
+                c.digital_score,
+                c.opportunity_level,
+                ct.name            AS contacto_nombre,
+                ct.title           AS contacto_cargo,
+                ct.phone           AS contacto_tel,
+                ct.email           AS contacto_email
+            FROM lu_daily_assignments da
+            JOIN lu_users u    ON u.id  = da.user_id
+            JOIN lu_companies c ON c.id = da.company_id
+            LEFT JOIN LATERAL (
+                SELECT name, title, phone, email
+                FROM lu_contacts
+                WHERE company_id = c.id
+                ORDER BY id
+                LIMIT 1
+            ) ct ON true
+            ORDER BY da.assigned_date DESC, u.name, c.name
+            """
+        )
+        rows = await cursor.fetchall()
+
+        reminder_cursor = await conn.execute(
+            """
+            SELECT assignment_id, text, due_at, done
+            FROM lu_reminders
+            ORDER BY assignment_id, position ASC, created_at ASC
+            """
+        )
+        reminder_rows = await reminder_cursor.fetchall()
+
+    # Group reminders by assignment_id
+    reminders_map: dict = {}
+    for r in reminder_rows:
+        aid = r["assignment_id"]
+        if aid not in reminders_map:
+            reminders_map[aid] = []
+        tick = "✓" if r["done"] else "○"
+        due = f" [{r['due_at']}]" if r["due_at"] else ""
+        reminders_map[aid].append(f"{tick} {r['text']}{due}")
+
+    # Build workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Notas LeadUp"
+
+    HEADERS = [
+        "Fecha Asignación", "Comercial", "Estado",
+        "Empresa", "Ciudad", "Sector", "Web", "Tel. Empresa",
+        "Score Digital", "Oportunidad",
+        "Contacto", "Cargo", "Tel. Contacto", "Email",
+        "Notas", "Seguimiento", "Recordatorios", "Feedback Rechazo",
+    ]
+
+    # Header style
+    header_fill   = PatternFill("solid", fgColor="3B1F6E")   # violeta Cliender
+    header_font   = Font(color="FFFFFF", bold=True, size=10, name="Calibri")
+    center_align  = Alignment(horizontal="center", vertical="center", wrap_text=False)
+    wrap_align    = Alignment(horizontal="left",   vertical="top",    wrap_text=True)
+    thin          = Side(border_style="thin", color="D0D0D0")
+    cell_border   = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    ws.row_dimensions[1].height = 22
+    for col_idx, header in enumerate(HEADERS, start=1):
+        cell = ws.cell(row=1, column=col_idx, value=header)
+        cell.fill      = header_fill
+        cell.font      = header_font
+        cell.alignment = center_align
+        cell.border    = cell_border
+
+    # Column widths
+    COL_WIDTHS = [14, 14, 14, 30, 14, 22, 28, 16, 8, 12, 22, 18, 16, 26, 40, 14, 40, 30]
+    for i, w in enumerate(COL_WIDTHS, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+    STATUS_COLORS = {
+        "closed":     "D1FAE5",
+        "pending":    "FEF3C7",
+        "call_later": "EDE9FE",
+        "no_answer":  "F1F5F9",
+        "rejected":   "FEE2E2",
+    }
+
+    for row_idx, r in enumerate(rows, start=2):
+        aid    = r["assignment_id"]
+        status = r["status"] or "pending"
+        fill   = PatternFill("solid", fgColor=STATUS_COLORS.get(status, "FFFFFF"))
+        reminders_text = "\n".join(reminders_map.get(aid, [])) or ""
+
+        values = [
+            str(r["assigned_date"]) if r["assigned_date"] else "",
+            r["comercial"] or "",
+            STATUS_LABELS.get(status, status),
+            r["empresa"] or "",
+            r["city"] or "",
+            r["sector"] or "",
+            r["website"] or "",
+            r["empresa_tel"] or "",
+            r["digital_score"] if r["digital_score"] is not None else "",
+            r["opportunity_level"] or "",
+            r["contacto_nombre"] or "",
+            r["contacto_cargo"] or "",
+            r["contacto_tel"] or "",
+            r["contacto_email"] or "",
+            r["notes"] or "",
+            str(r["follow_up_date"]) if r["follow_up_date"] else "",
+            reminders_text,
+            r["rejection_feedback"] or "",
+        ]
+
+        has_content = bool(r["notes"] or reminders_text or r["rejection_feedback"])
+        row_height  = 32 if has_content else 18
+        ws.row_dimensions[row_idx].height = row_height
+
+        for col_idx, val in enumerate(values, start=1):
+            cell = ws.cell(row=row_idx, column=col_idx, value=val)
+            cell.fill      = fill
+            cell.border    = cell_border
+            cell.alignment = wrap_align if col_idx in (15, 17, 18) else Alignment(vertical="center")
+
+    # Freeze header row
+    ws.freeze_panes = "A2"
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    from datetime import datetime as _dt
+    filename = f"leadup_notas_{_dt.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

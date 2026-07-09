@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     apify_api_key: str = ""
     lusha_api_key: str = ""
+    cios_base_url: str = "http://host.docker.internal:3000"
 
     # Database
     database_url: str = "postgresql://postgres:postgres@localhost:5432/leadup"

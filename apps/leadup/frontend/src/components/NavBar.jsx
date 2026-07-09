@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { m as motion } from 'motion/react'
 import { useAuth } from '../hooks/useAuth'
 import { useTheme } from '../hooks/useTheme'
 
@@ -59,22 +60,28 @@ export default function NavBar() {
       <Link
         key={to}
         to={to}
-        className={`relative px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200
+        className={`relative px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150
           ${active
-            ? 'text-accent bg-accent/10 shadow-[inset_0_1px_0_0_rgb(79_142_247_/_0.12)]'
+            ? 'text-accent bg-accent/10'
             : 'text-muted hover:text-primary hover:bg-surface-hover'
           }`}
       >
         {label}
-        {active && <span className="nav-active-dot" />}
+        {active && (
+          <motion.span
+            layoutId="nav-pill"
+            className="nav-active-dot absolute inset-0 rounded-lg bg-accent/8 border border-accent/20 -z-10"
+            transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+          />
+        )}
       </Link>
     )
   }
 
   const navLinks = [
-    link('/', 'Dashboard'),
+    link('/', 'Inicio'),
     link('/pipeline', 'Pipeline'),
-    ...(isAdmin ? [link('/analytics', 'Analytics'), link('/ajustes', 'Ajustes')] : []),
+    ...(isAdmin ? [link('/analytics', 'Analítica'), link('/ajustes', 'Ajustes')] : []),
   ]
 
   return (
@@ -120,18 +127,18 @@ export default function NavBar() {
         </div>
       </div>
 
-      {/* Mobile dropdown */}
-      {mobileOpen && (
-        <nav className="md:hidden border-t border-surface-border bg-surface px-4 pb-4 pt-3 flex flex-col gap-1 animate-fade-in">
+      {/* Mobile dropdown — CSS transition */}
+      <div className={`md:hidden border-t border-surface-border bg-surface overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${
+        mobileOpen ? 'max-h-80 opacity-100' : 'max-h-0 opacity-0 pointer-events-none'
+      }`}>
+        <nav className="px-4 pb-4 pt-3 flex flex-col gap-1">
           {navLinks}
           <div className="mt-3 pt-3 border-t border-surface-border flex items-center justify-between">
             <span className="text-xs text-muted">{user?.name}</span>
-            <button onClick={logout} className="btn-ghost text-sm text-muted">
-              Salir
-            </button>
+            <button type="button" onClick={logout} className="btn-ghost text-sm text-muted">Salir</button>
           </div>
         </nav>
-      )}
+      </div>
     </header>
   )
 }

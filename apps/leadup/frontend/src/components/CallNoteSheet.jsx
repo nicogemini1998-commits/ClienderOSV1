@@ -107,7 +107,11 @@ export default function CallNoteSheet({
   const handleSave = async () => {
     setSaving(true)
     try {
-      await leadsApi.createCallLog(assignmentId, { note: buildNote(), status_at: newStatus })
+      const noteText = buildNote()
+      await leadsApi.createCallLog(assignmentId, { note: noteText, status_at: newStatus })
+      if (newStatus === 'rejected' && noteText.trim()) {
+        await leadsApi.updateRejectionFeedback(assignmentId, noteText)
+      }
       if (isCallLater) {
         const dt = getCallbackDatetime()
         if (dt && onAddReminder) {

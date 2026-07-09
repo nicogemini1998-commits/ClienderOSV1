@@ -63,14 +63,31 @@ def detect_columns(headers: list[str]) -> dict[str, str]:
     return detected
 
 def _combine_name(row_dict: dict) -> dict:
-    """Si hay first_name + last_name, combinarlos en contact_name."""
+    """Si hay first_name + last_name, combinarlos en contact_name.
+    Si hay sub_industry pero no industry, copiar sub_industry como industry (para que el match de nichos funcione)."""
     first = row_dict.pop('first_name', '') or ''
     last = row_dict.pop('last_name', '') or ''
     if first or last:
         combined = f"{first} {last}".strip()
         if combined and not row_dict.get('contact_name'):
             row_dict['contact_name'] = combined
+    # Nota: NO copiamos sub_industry a industry. El campo industry se rellena en
+    # el endpoint /upload a partir del filename ("Leads <Nicho>.csv").
     return row_dict
+
+
+def _synthesize_columns(column_mapping: dict) -> dict:
+    """Lusha trae first_name+last_name por separado y sub_industry sin industry.
+    Tras parsear filas ya tendremos contact_name e industry sintéticos, así que
+    reflejamos esos campos en columns_found para que el validador no los marque
+    como faltantes."""
+    mapped_vals = set(column_mapping.values())
+    if ('first_name' in mapped_vals or 'last_name' in mapped_vals) and 'contact_name' not in mapped_vals:
+        column_mapping['(First + Last Name)'] = 'contact_name'
+    if 'sub_industry' in mapped_vals and 'industry' not in mapped_vals:
+        column_mapping['(Sub Industry)'] = 'industry'
+    return column_mapping
+
 
 def parse_csv(file_bytes: bytes) -> dict:
     try:
@@ -86,7 +103,7 @@ def parse_csv(file_bytes: bytes) -> dict:
             return {'error': 'CSV vacío o sin cabeceras'}
 
         headers = list(reader.fieldnames)
-        column_mapping = detect_columns(headers)
+        column_mapping = _synthesize_columns(detect_columns(headers))
 
         data_rows = []
         for row in reader:
@@ -122,7 +139,7 @@ def parse_excel(file_bytes: bytes) -> dict:
             return {'error': 'Excel vacío'}
 
         headers = [str(h).strip() if h else '' for h in rows[0]]
-        column_mapping = detect_columns(headers)
+        column_mapping = _synthesize_columns(detect_columns(headers))
 
         data_rows = []
         for row in rows[1:]:

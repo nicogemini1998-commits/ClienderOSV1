@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { m as motion, AnimatePresence } from 'motion/react'
+import { motion, AnimatePresence } from 'motion/react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   Cell, ResponsiveContainer, PieChart, Pie,

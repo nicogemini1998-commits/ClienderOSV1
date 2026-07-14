@@ -83,11 +83,19 @@ async def update_user_settings(
 
 @router.get("/analytics")
 async def get_analytics(
+    days: int = 30,
     current_user: dict = Depends(require_admin),
 ):
-    """Return analytics: total leads, by status, by commercial, conversion rate."""
+    """Return analytics straight from the DB: totals, per-status, per-commercial,
+    conversion, plus historical series over the last `days` days (daily
+    assignments vs closes, real call activity from lu_call_logs, sectors,
+    cities). No demo/fake values — every number is a live query result."""
     import json as _json
+    from datetime import timedelta
+
+    days = max(1, min(int(days), 365))
     today = str(date.today())
+    since = str(date.today() - timedelta(days=days - 1))
 
     async with get_conn() as conn:
         # Overall stats for today
@@ -128,13 +136,15 @@ async def get_analytics(
                 COUNT(CASE WHEN da.status = 'call_later' THEN 1 END) AS call_later,
                 COUNT(CASE WHEN da.status = 'wrong_number' THEN 1 END) AS wrong_number,
                 COUNT(CASE WHEN da.assigned_date = ? THEN 1 END) AS today_count,
+                COUNT(CASE WHEN da.assigned_date >= ? THEN 1 END) AS period_assigned,
+                COUNT(CASE WHEN da.status = 'closed' AND da.assigned_date >= ? THEN 1 END) AS period_closed,
                 COUNT(CASE WHEN da.status = 'closed' AND da.assigned_date::date >= CURRENT_DATE - INTERVAL '7 days' AND da.assigned_date::date < CURRENT_DATE THEN 1 END) AS week_closed
             FROM lu_users u
             LEFT JOIN lu_daily_assignments da ON da.user_id = u.id
             GROUP BY u.id, u.name, u.email, u.lead_search_enabled
             ORDER BY u.name
             """,
-            (today,),
+            (today, since, since),
         )
         commercial_rows = await cursor.fetchall()
 
@@ -156,6 +166,84 @@ async def get_analytics(
         row = await cursor.fetchone()
         total_companies = row[0]
 
+        cursor = await conn.execute(
+            "SELECT DISTINCT industry FROM lu_companies WHERE industry IS NOT NULL AND industry != '' ORDER BY industry"
+        )
+        _raw_industries = [r["industry"] for r in await cursor.fetchall()]
+        available_industries = sorted(set(s.split(" - ")[0].strip() for s in _raw_industries if s))
+
+        cursor = await conn.execute(
+            """
+            SELECT SPLIT_PART(industry, ' - ', 1) as nicho, COUNT(*) as total
+            FROM lu_companies
+            WHERE industry IS NOT NULL AND industry != ''
+            AND id NOT IN (SELECT company_id FROM lu_daily_assignments)
+            GROUP BY 1
+            ORDER BY total DESC
+            """
+        )
+        unassigned_by_industry = [
+            {"industry": r["nicho"], "count": r["total"]}
+            for r in await cursor.fetchall()
+        ]
+
+        # ---- Historical series over the selected period (all real data) ----
+
+        # Status breakdown within the period
+        cursor = await conn.execute(
+            "SELECT status, COUNT(*) AS count FROM lu_daily_assignments WHERE assigned_date >= ? GROUP BY status",
+            (since,),
+        )
+        period_status_rows = await cursor.fetchall()
+
+        # Daily evolution: assignments vs closes
+        cursor = await conn.execute(
+            """
+            SELECT assigned_date::date::text AS d,
+                   COUNT(*) AS assigned,
+                   COUNT(CASE WHEN status = 'closed' THEN 1 END) AS closed
+            FROM lu_daily_assignments
+            WHERE assigned_date >= ?
+            GROUP BY 1 ORDER BY 1
+            """,
+            (since,),
+        )
+        daily_rows = await cursor.fetchall()
+
+        # Real call activity from lu_call_logs
+        cursor = await conn.execute(
+            """
+            SELECT called_at::date::text AS d, COUNT(*) AS calls
+            FROM lu_call_logs
+            WHERE to_char(called_at, 'YYYY-MM-DD') >= ?
+            GROUP BY 1 ORDER BY 1
+            """,
+            (since,),
+        )
+        calls_daily_rows = await cursor.fetchall()
+
+        # Leads by sector (top 8)
+        cursor = await conn.execute(
+            """
+            SELECT SPLIT_PART(industry, ' - ', 1) AS sector, COUNT(*) AS n
+            FROM lu_companies
+            WHERE industry IS NOT NULL AND industry != ''
+            GROUP BY 1 ORDER BY n DESC LIMIT 8
+            """
+        )
+        sector_rows = await cursor.fetchall()
+
+        # Leads by city (top 8)
+        cursor = await conn.execute(
+            """
+            SELECT city, COUNT(*) AS n
+            FROM lu_companies
+            WHERE city IS NOT NULL AND city != ''
+            GROUP BY 1 ORDER BY n DESC LIMIT 8
+            """
+        )
+        city_rows = await cursor.fetchall()
+
     # Build top_industries dict per user
     top_industries: dict[int, list] = {}
     for r in industry_rows:
@@ -172,6 +260,13 @@ async def get_analytics(
     status_map = {r["status"]: r["count"] for r in status_rows}
     status_today_map = {r["status"]: r["count"] for r in status_today_rows}
 
+    # Period aggregates (real, derived from the period queries above)
+    period_assigned = sum(r["assigned"] for r in daily_rows)
+    period_closed = sum(r["closed"] for r in daily_rows)
+    period_calls = sum(r["calls"] for r in calls_daily_rows)
+    period_conv = round(period_closed / period_assigned * 100, 1) if period_assigned > 0 else 0
+    period_status_map = {r["status"]: r["count"] for r in period_status_rows}
+
     # Get all users for assignment dropdown
     users_list = [
         {"id": r["id"], "name": r["name"], "email": r["email"]}
@@ -180,6 +275,7 @@ async def get_analytics(
 
     return {
         "today": str(today),
+        "period_days": days,
         "total_leads_today": total_today,
         "total_companies": total_companies,
         "users": users_list,
@@ -188,6 +284,26 @@ async def get_analytics(
             "by_status": status_map,
             "conversion_rate": conversion_rate,
         },
+        "period": {
+            "total_assigned": period_assigned,
+            "closed": period_closed,
+            "calls": period_calls,
+            "conversion_rate": period_conv,
+            "by_status": period_status_map,
+        },
+        "daily": [
+            {"date": r["d"], "assigned": r["assigned"], "closed": r["closed"]}
+            for r in daily_rows
+        ],
+        "calls_daily": [
+            {"date": r["d"], "calls": r["calls"]} for r in calls_daily_rows
+        ],
+        "by_sector": [
+            {"sector": r["sector"], "count": r["n"]} for r in sector_rows
+        ],
+        "by_city": [
+            {"city": r["city"], "count": r["n"]} for r in city_rows
+        ],
         "today_by_status": status_today_map,
         "by_commercial": [
             {
@@ -199,6 +315,8 @@ async def get_analytics(
                 "industry_filters": _json.loads(r["industry_filters"] or "[]"),
                 "total_assigned": r["total_assigned"],
                 "today_count": r["today_count"],
+                "period_assigned": r["period_assigned"],
+                "period_closed": r["period_closed"],
                 "closed": r["closed"],
                 "week_closed": r["week_closed"],
                 "no_answer": r["no_answer"],
@@ -212,6 +330,8 @@ async def get_analytics(
             }
             for r in commercial_rows
         ],
+        "available_industries": available_industries,
+        "unassigned_by_industry": unassigned_by_industry,
     }
 
 
@@ -518,7 +638,10 @@ async def load_real_leads(
         # 2. Wipe all existing fake/test data (only non-real companies)
         async with get_conn() as conn:
             # Delete all assignments for Toni, Ruben, Ethan and Nicolas
-            await conn.execute("DELETE FROM lu_daily_assignments WHERE user_id IN (1, 2, 4, 5)")
+            await conn.execute(
+                "DELETE FROM lu_daily_assignments WHERE user_id IN (1, 2, 4, 5) AND company_id IN "
+                "(SELECT id FROM lu_companies WHERE website IS NULL OR website = '' OR website LIKE 'www.%' OR rating IS NULL)"
+            )
             # Delete contacts and companies that have no website (fake/test data markers)
             await conn.execute(
                 "DELETE FROM lu_contacts WHERE company_id IN "
@@ -964,48 +1087,6 @@ async def get_pending_by_niche(
     ]
 
     return {"niches": niches}
-
-
-class RenameNicheRequest(BaseModel):
-    old: str
-    new: str
-
-
-@router.patch("/rename-niche")
-async def rename_niche(
-    request: RenameNicheRequest,
-    current_user: dict = Depends(require_admin),
-):
-    """Renombra todas las empresas con industry=old a industry=new (case-insensitive, trim)."""
-    old = (request.old or "").strip()
-    new = (request.new or "").strip()
-    if not old or not new:
-        raise HTTPException(status_code=400, detail="old y new son obligatorios")
-    if old.lower() == new.lower():
-        return {"success": True, "updated": 0, "old": old, "new": new}
-
-    async with get_conn() as conn:
-        # Acceso directo a asyncpg para obtener rowcount real.
-        raw = conn._conn  # type: ignore[attr-defined]
-        # Caso especial: el grupo 'Sin nicho' agrupa companies con industry NULL/vacío.
-        if old.lower() == 'sin nicho':
-            status = await raw.execute(
-                "UPDATE lu_companies SET industry = $1 WHERE industry IS NULL OR TRIM(industry) = ''",
-                new,
-            )
-        else:
-            status = await raw.execute(
-                "UPDATE lu_companies SET industry = $1 WHERE LOWER(TRIM(industry)) = LOWER($2)",
-                new, old,
-            )
-        # asyncpg devuelve "UPDATE N"
-        try:
-            updated = int(status.split()[-1])
-        except Exception:
-            updated = 0
-        logger.info(f"rename-niche: {old!r} -> {new!r} ({updated} rows)")
-
-    return {"success": True, "updated": updated, "old": old, "new": new}
 
 
 # ── Exportar notas a Excel ─────────────────────────────────────────────────────
